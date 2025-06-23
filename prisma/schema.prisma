@@ -1,0 +1,415 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                    Int         @id @default(autoincrement())
+  username              String      @unique @db.VarChar(25)
+  email                 String      @unique @db.VarChar(255)
+  password_hash         String
+  account_type          AccountType @default(PUBLIC)
+  role                  Role @default(USER)
+  full_name             String      @db.VarChar(100)
+  profile_image         String?
+  bio                   String?
+  location              String?
+  verify_token          String?
+  verify_token_expires  DateTime?
+  is_verified           Boolean     @default(false)
+  reset_pass_token      String?
+  reset_pass_expires    DateTime?
+  refresh_token         String?
+  refresh_token_expires DateTime?
+  created_at            DateTime    @default(now())
+  updated_at            DateTime    @updatedAt
+
+  farm                  Farm?
+  followers             Follow[]              @relation("follower")
+  following             Follow[]              @relation("followed")
+  forum_posts           ForumPost[]
+  post_comments         PostComment[]
+  post_likes            PostLike[]
+  shared_posts          SharedPost[]
+  tasks                 Task[]
+  workers               Worker[]
+  plant_health_scans    PlantHealthScan[]
+  chatbot_conversations ChatbotConversation[]
+
+  @@map("users")
+}
+
+
+model Invitation {
+  id         Int      @id @default(autoincrement())
+  email      String   @unique
+  token      String   @unique
+  expiresAt  DateTime
+  accepted   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  @@map("invitations")
+}
+
+enum AccountType {
+  PUBLIC
+  PRIVATE
+}
+
+enum InvitationStatus {
+  REFUSED
+  ACCEPTED
+  PENDING
+  NOT_APPLICABLE
+}
+
+enum Role {
+  ADMIN
+  USER
+}
+
+model Follow {
+  id          Int          @id @default(autoincrement())
+  follower_id Int
+  followed_id Int
+  status      FollowStatus @default(PENDING)
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  follower  User @relation("follower", fields: [follower_id], references: [id], onDelete: Cascade)
+  following User @relation("followed", fields: [followed_id], references: [id], onDelete: Cascade)
+
+  @@unique([follower_id, followed_id])
+  @@map("follows")
+}
+
+enum FollowStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+model ForumPost {
+  id         Int          @id @default(autoincrement())
+  content    String?
+  image_urls String[]     @default([])
+  category   PostCategory @default(DISCUSSIONS)
+  view_count Int          @default(0)
+  created_at DateTime     @default(now())
+  updated_at DateTime     @updatedAt
+
+  user_id  Int
+  user     User          @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  comments PostComment[]
+  likes    PostLike[]
+  shares   SharedPost[]
+
+  @@index([user_id])
+  @@index([category])
+  @@index([created_at])
+  @@map("forum_posts")
+}
+
+enum PostCategory {
+  DISCUSSIONS
+  TIPS
+  PROBLEMS
+  SOLUTIONS
+}
+
+model PostComment {
+  id         Int      @id @default(autoincrement())
+  content    String
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  user_id Int
+  post_id Int
+  user    User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  post    ForumPost @relation(fields: [post_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@index([post_id])
+  @@index([created_at])
+  @@map("post_comments")
+}
+
+model PostLike {
+  id         Int      @id @default(autoincrement())
+  created_at DateTime @default(now())
+
+  user_id Int
+  post_id Int
+  user    User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  post    ForumPost @relation(fields: [post_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, post_id])
+  @@index([post_id])
+  @@map("post_likes")
+}
+
+model SharedPost {
+  id         Int      @id @default(autoincrement())
+  created_at DateTime @default(now())
+
+  user_id Int
+  post_id Int
+  user    User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  post    ForumPost @relation(fields: [post_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, post_id])
+  @@index([post_id])
+  @@map("shared_posts")
+}
+
+model DailyTip {
+  id         Int      @id @default(autoincrement())
+  title      String
+  content    String
+  category   String
+  created_at DateTime @default(now())
+
+  @@map("daily_tips")
+}
+
+model Farm {
+  id         Int      @id @default(autoincrement())
+  name       String
+  location   String
+  total_area Float
+  area_unit  AreaUnit @default(HECTARES)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  user_id   Int            @unique
+  user      User           @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  divisions LandDivision[]
+  Plant     Plant[]
+
+  @@map("farms")
+}
+
+enum AreaUnit {
+  HECTARES
+  ACRES
+  SQUARE_METERS
+}
+
+model LandDivision {
+  id                 Int               @id @default(autoincrement())
+  name               String
+  area               Float
+  cultivation_status CultivationStatus
+  geolocation        String
+  created_at         DateTime          @default(now())
+  updated_at         DateTime          @updatedAt
+
+  farm_id        Int
+  farm           Farm            @relation(fields: [farm_id], references: [id], onDelete: Cascade)
+  resource_usage ResourceUsage[]
+  tasks          Task[]
+
+  plant_id Int?
+  plant    Plant? @relation(fields: [plant_id], references: [id], onDelete: SetNull)
+
+  @@index([farm_id])
+  @@index([cultivation_status])
+  @@map("land_divisions")
+}
+
+model Plant {
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String?
+  image_url   String?
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  farm_id        Int
+  farm           Farm           @relation(fields: [farm_id], references: [id], onDelete: Cascade)
+  land_divisions LandDivision[]
+
+  @@map("plants")
+}
+
+enum CultivationStatus {
+  PLANTED
+  HARVESTED
+  FALLOW
+}
+
+model Task {
+  id              Int          @id @default(autoincrement())
+  title           String
+  description     String
+  status          TaskStatus
+  priority        TaskPriority
+  start_date      DateTime
+  due_date        DateTime
+  completion_date DateTime?
+  cancelled_at    DateTime?
+  created_at      DateTime     @default(now())
+  updated_at      DateTime     @updatedAt
+
+  user_id          Int
+  land_division_id Int?
+  user             User             @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  land_division    LandDivision?    @relation(fields: [land_division_id], references: [id], onDelete: Cascade)
+  assignments      TaskAssignment[]
+
+  @@index([user_id])
+  @@index([land_division_id])
+  @@index([status])
+  @@index([priority])
+  @@index([created_at])
+  @@map("tasks")
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+model TaskAssignment {
+  id          Int      @id @default(autoincrement())
+  assigned_at DateTime @default(now())
+
+  task_id   Int
+  worker_id Int
+  task      Task   @relation(fields: [task_id], references: [id], onDelete: Cascade)
+  worker    Worker @relation(fields: [worker_id], references: [id], onDelete: Cascade)
+
+  @@unique([task_id, worker_id])
+  @@map("task_assignments")
+}
+
+model Worker {
+  id                Int              @id @default(autoincrement())
+  name              String           @db.VarChar(100)
+  image_url         String?
+  contact           String
+  employment_status EmploymentStatus @default(ACTIVE)
+  created_at        DateTime         @default(now())
+  updated_at        DateTime         @updatedAt
+
+  employerId  Int
+  User        User             @relation(fields: [employerId], references: [id], onDelete: Cascade)
+  assignments TaskAssignment[]
+
+  @@index([employerId])
+  @@index([employment_status])
+  @@index([created_at])
+  @@map("workers")
+}
+
+enum EmploymentStatus {
+  ACTIVE
+  INACTIVE
+}
+
+model ResourceType {
+  id         Int      @id @default(autoincrement())
+  name       String   @unique
+  unit       String
+  created_at DateTime @default(now())
+
+  resource_usage ResourceUsage[]
+
+  @@map("resource_types")
+}
+
+model ResourceUsage {
+  id         Int      @id @default(autoincrement())
+  quantity   Float
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  land_division_id Int
+  resource_type_id Int
+  land_division    LandDivision @relation(fields: [land_division_id], references: [id], onDelete: Cascade)
+  resource_type    ResourceType @relation(fields: [resource_type_id], references: [id], onDelete: Cascade)
+
+  @@unique([land_division_id, resource_type_id])
+  @@index([land_division_id])
+  @@index([resource_type_id])
+  @@map("resource_usages")
+}
+
+model PlantHealthScan {
+  id        Int      @id @default(autoincrement())
+  image_url String
+  scan_date DateTime @default(now())
+
+  user_id    Int
+  user       User                   @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  diagnostic PlantHealthDiagnostic?
+
+  @@index([user_id])
+  @@index([scan_date])
+  @@map("plant_health_scans")
+}
+
+model PlantHealthDiagnostic {
+  id               Int      @id @default(autoincrement())
+  issue_detected   Boolean
+  disease_name     String
+  confidence_score Float
+  description      String
+  treatment        String
+  prevention       String
+  created_at       DateTime @default(now())
+
+  scan_id Int              @unique
+  scan    PlantHealthScan? @relation(fields: [scan_id], references: [id], onDelete: Cascade)
+
+  @@map("plant_health_diagnostics")
+}
+
+model ChatbotConversation {
+  id         Int      @id @default(autoincrement())
+  started_at DateTime @default(now())
+
+  user_id  Int
+  user     User             @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  messages ChatbotMessage[]
+
+  @@index([user_id])
+  @@map("chatbot_conversations")
+}
+
+model ChatbotMessage {
+  id          Int        @id @default(autoincrement())
+  sender_type SenderType
+  message     String
+  sent_at     DateTime   @default(now())
+
+  conversation_id Int
+  conversation    ChatbotConversation @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+
+  @@index([conversation_id])
+  @@map("chatbot_messages")
+}
+
+enum SenderType {
+  USER
+  BOT
+}
