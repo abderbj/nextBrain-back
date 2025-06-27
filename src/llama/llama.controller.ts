@@ -2,7 +2,7 @@ import { Controller, Post, Body, Param, Patch, Get, HttpException, HttpStatus } 
 import { ChatCompetionMessageDto } from './dto/create-chat-completion.request';
 import { LlamaService, LlamaChatMetadata } from './llama.service';
 
-@Controller('llama')
+@Controller('llama/chat')
 export class LlamaController {
     constructor(private readonly llamaService: LlamaService) { }
 
