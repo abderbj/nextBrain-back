@@ -1,0 +1,789 @@
+{
+  "info": {
+    "name": "NextBrain Backend API",
+    "description": "Comprehensive API collection for NextBrain backend application\n\n## Test Flow:\n1. Send invitation to user email\n2. Check email for invitation link and token\n3. Accept invitation (GET to see form, POST to accept)\n4. Register with accepted invitation email\n5. Login with username/password\n6. Use Bearer token for authenticated endpoints\n\n## Working Test User:\n- Username: testuser\n- Email: gaithrouahi1730@gmail.com\n- Password: password123\n\n## Variables:\n- base_url: API base URL\n- access_token: JWT token from login\n- user_id: Current user ID\n- chat_id: Current chat ID\n- invitation_token: Token from invitation email",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": "2.0.0"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{access_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000/api",
+      "type": "string"
+    },
+    {
+      "key": "access_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "refresh_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "user_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "chat_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "invitation_token",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Register User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"gaithrouahi1730@gmail.com\",\n  \"username\": \"testuser\",\n  \"password\": \"password123\",\n  \"fullName\": \"Test User\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/register",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "register"]
+            },
+            "description": "Register a new user account"
+          }
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// Extract access token from response",
+                  "if (pm.response.code === 200) {",
+                  "    const responseJson = pm.response.json();",
+                  "    if (responseJson.accessToken) {",
+                  "        pm.collectionVariables.set('access_token', responseJson.accessToken);",
+                  "    }",
+                  "    if (responseJson.user && responseJson.user.id) {",
+                  "        pm.collectionVariables.set('user_id', responseJson.user.id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"testuser\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "login"]
+            },
+            "description": "Login with email and password"
+          }
+        },
+        {
+          "name": "Refresh Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/refresh",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "refresh"]
+            },
+            "description": "Refresh access token using refresh token from cookies"
+          }
+        },
+        {
+          "name": "Get Profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/profile",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "profile"]
+            },
+            "description": "Get authenticated user profile"
+          }
+        },
+        {
+          "name": "Resend Verification Email",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"test@example.com\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/resend-verification",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "resend-verification"]
+            },
+            "description": "Resend email verification"
+          }
+        },
+        {
+          "name": "Forgot Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"test@example.com\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/forgot-password",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "forgot-password"]
+            },
+            "description": "Request password reset email"
+          }
+        },
+        {
+          "name": "Reset Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"reset_token_here\",\n  \"password\": \"newpassword123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/reset-password",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "reset-password"]
+            },
+            "description": "Reset password with token"
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/logout",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "logout"]
+            },
+            "description": "Logout user"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "Get User Profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/users/profile",
+              "host": ["{{base_url}}"],
+              "path": ["users", "profile"]
+            },
+            "description": "Get current user's profile information"
+          }
+        },
+        {
+          "name": "Update User Profile",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Updated Full Name\",\n  \"username\": \"updatedusername\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/users/profile",
+              "host": ["{{base_url}}"],
+              "path": ["users", "profile"]
+            },
+            "description": "Update user profile information"
+          }
+        },
+        {
+          "name": "Upload Profile Picture",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/users/upload-profile-picture",
+              "host": ["{{base_url}}"],
+              "path": ["users", "upload-profile-picture"]
+            },
+            "description": "Upload user profile picture"
+          }
+        },
+        {
+          "name": "Update Password",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"currentpassword123\",\n  \"newPassword\": \"newpassword123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/users/update-password",
+              "host": ["{{base_url}}"],
+              "path": ["users", "update-password"]
+            },
+            "description": "Update user password"
+          }
+        },
+        {
+          "name": "Delete Account",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/users/delete-account",
+              "host": ["{{base_url}}"],
+              "path": ["users", "delete-account"]
+            },
+            "description": "Delete user account"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Gemini Chat",
+      "item": [
+        {
+          "name": "Create Chat",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// Extract chat ID from response",
+                  "if (pm.response.code === 200) {",
+                  "    const responseJson = pm.response.json();",
+                  "    if (responseJson.chatId) {",
+                  "        pm.collectionVariables.set('chat_id', responseJson.chatId);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"My Gemini Chat\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/gemini/chat/create",
+              "host": ["{{base_url}}"],
+              "path": ["gemini", "chat", "create"]
+            },
+            "description": "Create a new Gemini chat session"
+          }
+        },
+        {
+          "name": "Send Message",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Hello! Can you help me with a programming question?\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/gemini/chat/{{chat_id}}/message",
+              "host": ["{{base_url}}"],
+              "path": ["gemini", "chat", "{{chat_id}}", "message"]
+            },
+            "description": "Send a message to Gemini chat"
+          }
+        },
+        {
+          "name": "Regenerate Response",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/gemini/chat/{{chat_id}}/regenerate",
+              "host": ["{{base_url}}"],
+              "path": ["gemini", "chat", "{{chat_id}}", "regenerate"]
+            },
+            "description": "Regenerate the last response in Gemini chat"
+          }
+        },
+        {
+          "name": "Update Chat Title",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Updated Chat Title\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/gemini/chat/{{chat_id}}/title",
+              "host": ["{{base_url}}"],
+              "path": ["gemini", "chat", "{{chat_id}}", "title"]
+            },
+            "description": "Update chat title"
+          }
+        },
+        {
+          "name": "Get Chat",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/gemini/chat/{{chat_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["gemini", "chat", "{{chat_id}}"]
+            },
+            "description": "Get specific chat details"
+          }
+        },
+        {
+          "name": "List All Chats",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/gemini/chat",
+              "host": ["{{base_url}}"],
+              "path": ["gemini", "chat"]
+            },
+            "description": "List all Gemini chats"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Llama Chat",
+      "item": [
+        {
+          "name": "Create Chat",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// Extract chat ID from response",
+                  "if (pm.response.code === 201) {",
+                  "    const responseJson = pm.response.json();",
+                  "    if (responseJson.chatId) {",
+                  "        pm.collectionVariables.set('chat_id', responseJson.chatId);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"My Llama Chat\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/llama/chat/create",
+              "host": ["{{base_url}}"],
+              "path": ["llama", "chat", "create"]
+            },
+            "description": "Create a new Llama chat session"
+          }
+        },
+        {
+          "name": "Send Message",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"user\",\n  \"content\": \"Hello! Can you help me with a coding problem?\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/llama/chat/{{chat_id}}/message",
+              "host": ["{{base_url}}"],
+              "path": ["llama", "chat", "{{chat_id}}", "message"]
+            },
+            "description": "Send a message to Llama chat"
+          }
+        },
+        {
+          "name": "Regenerate Response",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/llama/chat/{{chat_id}}/regenerate",
+              "host": ["{{base_url}}"],
+              "path": ["llama", "chat", "{{chat_id}}", "regenerate"]
+            },
+            "description": "Regenerate the last response in Llama chat"
+          }
+        },
+        {
+          "name": "Update Chat Title",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Updated Llama Chat Title\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/llama/chat/{{chat_id}}/title",
+              "host": ["{{base_url}}"],
+              "path": ["llama", "chat", "{{chat_id}}", "title"]
+            },
+            "description": "Update Llama chat title"
+          }
+        },
+        {
+          "name": "Get Chat",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/llama/chat/{{chat_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["llama", "chat", "{{chat_id}}"]
+            },
+            "description": "Get specific Llama chat details"
+          }
+        },
+        {
+          "name": "List All Chats",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/llama/chat",
+              "host": ["{{base_url}}"],
+              "path": ["llama", "chat"]
+            },
+            "description": "List all Llama chats"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Invitations",
+      "item": [
+        {
+          "name": "Send Invitation",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// Store invitation token if needed for testing",
+                  "if (pm.response.code === 201 || pm.response.code === 200) {",
+                  "    console.log('Invitation sent successfully');",
+                  "    // Note: In real usage, the token would be sent via email",
+                  "    // For testing, you would need to check the email or database",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"newuser@example.com\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/invitations/invite",
+              "host": ["{{base_url}}"],
+              "path": ["invitations", "invite"]
+            },
+            "description": "Send an invitation to a user"
+          }
+        },
+        {
+          "name": "Accept Invitation (GET Form)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/invitations/accept-invitation?token={{invitation_token}}",
+              "host": ["{{base_url}}"],
+              "path": ["invitations", "accept-invitation"],
+              "query": [
+                {
+                  "key": "token",
+                  "value": "{{invitation_token}}"
+                }
+              ]
+            },
+            "description": "Display invitation acceptance form"
+          }
+        },
+        {
+          "name": "Accept Invitation (POST)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"password\": \"newuserpassword123\",\n  \"fullName\": \"New User Full Name\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/invitations/accept-invitation?token={{invitation_token}}",
+              "host": ["{{base_url}}"],
+              "path": ["invitations", "accept-invitation"],
+              "query": [
+                {
+                  "key": "token",
+                  "value": "{{invitation_token}}"
+                }
+              ]
+            },
+            "description": "Accept invitation and create account"
+          }
+        }
+      ]
+    },
+    {
+      "name": "File Upload",
+      "item": [
+        {
+          "name": "Upload File",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/file-upload",
+              "host": ["{{base_url}}"],
+              "path": ["file-upload"]
+            },
+            "description": "Upload a file"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Health Check",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/",
+              "host": ["{{base_url}}"],
+              "path": [""]
+            },
+            "description": "Basic health check endpoint"
+          }
+        }
+      ]
+    }
+  ]
+}

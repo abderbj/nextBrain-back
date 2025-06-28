@@ -5,6 +5,9 @@ import { AppService } from './app.service';
 import { UsersModule } from './users/users.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
+import { LlamaModule } from './llama/llama.module';
+import { GeminiModule } from './gemini/gemini.module';
+
 import {
   ThrottlerGuard,
   ThrottlerModule,
@@ -39,6 +42,8 @@ import { InvitationsModule } from './invitations/invitations.module';
     UsersModule,
     PrismaModule,
     AuthModule,
+    LlamaModule,
+    GeminiModule,
     FileUploadModule,
     InvitationsModule,
   ],

@@ -1,67 +1,99 @@
 import { Injectable } from '@nestjs/common';
 import axios from 'axios';
 import { ChatCompletionMessageDto } from './dto/create-chat-completion.request';
-import { v4 as uuidv4 } from 'uuid';
+import { PrismaService } from '../prisma/prisma.service';
+import { SenderType } from '@prisma/client';
 
 export interface GeminiChatMetadata {
-    chatId: string;
+    id: number;
     title: string;
     createdAt: Date;
     updatedAt: Date;
-    messages: ChatCompletionMessageDto[];
+    messages: Array<{
+        id: number;
+        senderType: SenderType;
+        message: string;
+        sentAt: Date;
+    }>;
 }
 
 @Injectable()
 export class GeminiService {
     private readonly apiKey = process.env.GEMINI_API_KEY;
     private readonly baseUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent`;
-    private chats: Record<string, GeminiChatMetadata> = {};
 
-    createChat(title = 'New Chat'): string {
-        const chatId = uuidv4();
-        const now = new Date();
-        this.chats[chatId] = {
-            chatId,
-            title,
-            createdAt: now,
-            updatedAt: now,
-            messages: [],
-        };
-        return chatId;
+    constructor(private readonly prisma: PrismaService) {}
+
+    async createChat(userId: number, title = 'New Chat'): Promise<number> {
+        const conversation = await this.prisma.chatbotConversation.create({
+            data: {
+                title,
+                user_id: userId,
+            },
+        });
+        return conversation.id;
     }
 
-    updateChatTitle(chatId: string, title: string) {
-        const chat = this.chats[chatId];
-        if (!chat) throw new Error('Chat not found');
-        chat.title = title;
-        chat.updatedAt = new Date();
+    async updateChatTitle(chatId: number, title: string) {
+        const conversation = await this.prisma.chatbotConversation.findUnique({
+            where: { id: chatId },
+        });
+        if (!conversation) throw new Error('Chat not found');
+        
+        await this.prisma.chatbotConversation.update({
+            where: { id: chatId },
+            data: { title },
+        });
     }
 
     async addMessageAndGetCompletion(
-        chatId: string,
+        chatId: number,
         message: ChatCompletionMessageDto
     ): Promise<{ response: string | null }> {
-        const chat = this.chats[chatId];
-        if (!chat) throw new Error('Chat not found');
+        const conversation = await this.prisma.chatbotConversation.findUnique({
+            where: { id: chatId },
+            include: {
+                messages: {
+                    orderBy: { sent_at: 'asc' },
+                },
+            },
+        });
+        
+        if (!conversation) throw new Error('Chat not found');
 
-        // Set title from first user message
+        // Set title from first user message if it's still "New Chat"
         if (
-            chat.messages.length === 0 &&
+            conversation.messages.length === 0 &&
             message.role === 'user' &&
-            chat.title === 'New Chat'
+            conversation.title === 'New Chat'
         ) {
             if (typeof message.content === 'string') {
-                chat.title = message.content.slice(0, 100);
+                await this.prisma.chatbotConversation.update({
+                    where: { id: chatId },
+                    data: { title: message.content.slice(0, 100) },
+                });
             }
         }
 
-        chat.messages.push(message);
-        chat.updatedAt = new Date();
+        // Save user message to database
+        await this.prisma.chatbotMessage.create({
+            data: {
+                conversation_id: chatId,
+                sender_type: 'USER',
+                message: message.content,
+            },
+        });
+
+        // Get all messages for context
+        const allMessages = await this.prisma.chatbotMessage.findMany({
+            where: { conversation_id: chatId },
+            orderBy: { sent_at: 'asc' },
+        });
 
         // Convert messages to Gemini format
-        const geminiMessages = chat.messages.map(msg => ({
-            role: msg.role === 'user' ? 'user' : 'model',
-            parts: [{ text: msg.content }]
+        const geminiMessages = allMessages.map(msg => ({
+            role: msg.sender_type === 'USER' ? 'user' : 'model',
+            parts: [{ text: msg.message }]
         }));
 
         try {
@@ -77,11 +109,14 @@ export class GeminiService {
 
             const responseText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
             if (responseText) {
-                const aiMessage: ChatCompletionMessageDto = {
-                    role: 'assistant',
-                    content: responseText
-                };
-                chat.messages.push(aiMessage);
+                // Save AI response to database
+                await this.prisma.chatbotMessage.create({
+                    data: {
+                        conversation_id: chatId,
+                        sender_type: 'BOT',
+                        message: responseText,
+                    },
+                });
                 return { response: responseText };
             }
             return { response: null };
@@ -91,22 +126,37 @@ export class GeminiService {
         }
     }
 
-    async regenerateLastResponse(chatId: string): Promise<{ response: string | null }> {
-        const chat = this.chats[chatId];
-        if (!chat) throw new Error('Chat not found');
+    async regenerateLastResponse(chatId: number): Promise<{ response: string | null }> {
+        const conversation = await this.prisma.chatbotConversation.findUnique({
+            where: { id: chatId },
+        });
+        if (!conversation) throw new Error('Chat not found');
         
-        // Remove last assistant message
-        for (let i = chat.messages.length - 1; i >= 0; i--) {
-            if (chat.messages[i].role === 'assistant') {
-                chat.messages.splice(i, 1);
-                break;
-            }
+        // Remove last BOT message
+        const lastBotMessage = await this.prisma.chatbotMessage.findFirst({
+            where: {
+                conversation_id: chatId,
+                sender_type: 'BOT',
+            },
+            orderBy: { sent_at: 'desc' },
+        });
+
+        if (lastBotMessage) {
+            await this.prisma.chatbotMessage.delete({
+                where: { id: lastBotMessage.id },
+            });
         }
 
+        // Get all remaining messages for context
+        const allMessages = await this.prisma.chatbotMessage.findMany({
+            where: { conversation_id: chatId },
+            orderBy: { sent_at: 'asc' },
+        });
+
         // Convert messages to Gemini format
-        const geminiMessages = chat.messages.map(msg => ({
-            role: msg.role === 'user' ? 'user' : 'model',
-            parts: [{ text: msg.content }]
+        const geminiMessages = allMessages.map(msg => ({
+            role: msg.sender_type === 'USER' ? 'user' : 'model',
+            parts: [{ text: msg.message }]
         }));
 
         try {
@@ -122,11 +172,14 @@ export class GeminiService {
 
             const responseText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
             if (responseText) {
-                const aiMessage: ChatCompletionMessageDto = {
-                    role: 'assistant',
-                    content: responseText
-                };
-                chat.messages.push(aiMessage);
+                // Save new AI response to database
+                await this.prisma.chatbotMessage.create({
+                    data: {
+                        conversation_id: chatId,
+                        sender_type: 'BOT',
+                        message: responseText,
+                    },
+                });
                 return { response: responseText };
             }
             return { response: null };
@@ -136,16 +189,43 @@ export class GeminiService {
         }
     }
 
-    getChat(chatId: string) {
-        return this.chats[chatId] ?? null;
+    async getChat(chatId: number): Promise<GeminiChatMetadata | null> {
+        const conversation = await this.prisma.chatbotConversation.findUnique({
+            where: { id: chatId },
+            include: {
+                messages: {
+                    orderBy: { sent_at: 'asc' },
+                },
+            },
+        });
+        
+        if (!conversation) return null;
+        
+        return {
+            id: conversation.id,
+            title: conversation.title,
+            createdAt: conversation.started_at,
+            updatedAt: conversation.updated_at,
+            messages: conversation.messages.map(msg => ({
+                id: msg.id,
+                senderType: msg.sender_type,
+                message: msg.message,
+                sentAt: msg.sent_at,
+            })),
+        };
     }
 
-    listChats() {
-        return Object.values(this.chats).map(({ chatId, title, createdAt, updatedAt }) => ({
-            chatId,
-            title,
-            createdAt,
-            updatedAt,
+    async listChats(userId: number) {
+        const conversations = await this.prisma.chatbotConversation.findMany({
+            where: { user_id: userId },
+            orderBy: { updated_at: 'desc' },
+        });
+        
+        return conversations.map(conversation => ({
+            id: conversation.id,
+            title: conversation.title,
+            createdAt: conversation.started_at,
+            updatedAt: conversation.updated_at,
         }));
     }
 }

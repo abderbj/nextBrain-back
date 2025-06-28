@@ -1,5 +1,4 @@
 import { PrismaClient } from '@prisma/client';
-import { seedDailyTips } from './seeders/daily-tip.seeder';
 
 async function main() {
   const prisma = new PrismaClient();
@@ -8,7 +7,8 @@ async function main() {
     await prisma.$connect();
     console.log('Starting database seeding...');
 
-    await seedDailyTips(prisma);
+    // No seeders currently available
+    console.log('No seeders to run.');
 
     console.log('Database seeding completed successfully!');
   } catch (error) {

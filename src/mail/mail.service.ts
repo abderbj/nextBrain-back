@@ -87,11 +87,18 @@ export class EmailService {
       invitationUrl,
       token,
     });
-    await this.transporter.sendMail({
-      from: `"${this.configService.get<string>('MAIL_FROM_NAME')}" <${this.configService.get<string>('MAIL_FROM')}>`,
-      to: email,
-      subject: 'You are invited to join Farmlink',
-      html,
-    });
+    
+    try {
+      await this.transporter.sendMail({
+        from: `"${this.configService.get<string>('MAIL_FROM_NAME')}" <${this.configService.get<string>('MAIL_FROM')}>`,
+        to: email,
+        subject: 'You are invited to join NextBrain',
+        html,
+      });
+      console.log(`✅ Invitation email sent successfully to: ${email}`);
+    } catch (error) {
+      console.error('❌ Failed to send invitation email:', error);
+      throw new Error('Failed to send invitation email');
+    }
   }
 }

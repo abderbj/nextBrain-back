@@ -34,6 +34,7 @@ export class UsersService {
       createUserDto.password,
     );
 
+    // Create user and mark as verified since they registered through an accepted invitation
     return await this.prisma.user.create({
       data: {
         username: createUserDto.username,
@@ -43,6 +44,7 @@ export class UsersService {
         bio: createUserDto.bio,
         location: createUserDto.location,
         password_hash,
+        is_verified: true, // Auto-verify users who register through accepted invitations
       },
       select: this.userSafeFields,
     });
