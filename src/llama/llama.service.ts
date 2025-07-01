@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { ChatCompetionMessageDto } from './dto/create-chat-completion.request';
 import axios from 'axios';
 import { PrismaService } from '../prisma/prisma.service';
@@ -19,9 +20,14 @@ export interface LlamaChatMetadata {
 
 @Injectable()
 export class LlamaService {
-    private readonly baseUrl = 'http://localhost:11434/api/chat';
+    private readonly baseUrl: string;
 
-    constructor(private readonly prisma: PrismaService) {}
+    constructor(
+        private readonly prisma: PrismaService,
+        private readonly configService: ConfigService,
+    ) {
+        this.baseUrl = this.configService.get<string>('LLAMA_API_URL') || 'http://localhost:11434/api/chat';
+    }
 
     async createChat(userId: number, title = 'New Chat'): Promise<number> {
         const conversation = await this.prisma.chatbotConversation.create({

@@ -1,16 +1,39 @@
-import { Controller } from '@nestjs/common';
-import { Get, Query, Res } from '@nestjs/common';
+import { Controller, UseGuards } from '@nestjs/common';
+import { Get, Query, Res, Request } from '@nestjs/common';
 import { Response } from 'express';
 import { Post, Body } from '@nestjs/common';
 import { SendInvitationDto } from './dto/send-invitation.dto';
+import { InvitationResponseDto } from './dto/invitation-response.dto';
 import { InvitationsService } from './invitations.service';
+import { Auth } from 'src/common/decorators/auth.decorator';
+import { Roles } from 'src/auth/roles.decorator';
+import { RolesGuard } from 'src/auth/guards/roles.guard';
+import { Role } from '@prisma/client';
+import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 @Controller('invitations')
 export class InvitationsController {
     constructor(private readonly invitationService: InvitationsService) {}
 
   @Post('invite')
+  @Auth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
   async inviteUser(@Body() dto: SendInvitationDto) {
     return this.invitationService.sendInvitation(dto);
+  }
+
+  @Post('resend-invitation')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  async resendInvitation(@Body() dto: SendInvitationDto) {
+    return this.invitationService.resendInvitation(dto.email);
+  }
+
+  @Get()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  async getAllInvitations(): Promise<InvitationResponseDto[]> {
+    return this.invitationService.getAllInvitations();
   }
 
   @Get('accept-invitation')

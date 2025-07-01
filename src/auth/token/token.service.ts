@@ -17,16 +17,20 @@ export class TokenService {
 
   async generateTokens(userId: number, username: string) {
     try {
+      // Fetch the user's role
+      const user = await this.usersService.findBy({ id: userId }, { role: true });
+      if (!user) throw new Error('User not found');
+
       const [accessToken, refreshToken] = await Promise.all([
         this.jwtService.signAsync(
-          { sub: userId, username },
+          { sub: userId, username, role: user.role },
           {
             expiresIn: '1d',
             secret: this.configService.get<string>('JWT_SECRET'),
           },
         ),
         this.jwtService.signAsync(
-          { sub: userId, username },
+          { sub: userId, username, role: user.role },
           {
             expiresIn: '30d',
             secret: this.configService.get<string>('JWT_REFRESH_SECRET'),

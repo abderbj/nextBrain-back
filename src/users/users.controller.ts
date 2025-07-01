@@ -7,9 +7,6 @@ import {
   Delete,
   Get,
   Controller,
-  Post,
-  Query,
-  Res,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { UpdateAccountType, UpdateUserDto } from './dto/update-user.dto';
@@ -23,9 +20,9 @@ import {
 } from '@nestjs/swagger';
 import { Auth } from 'src/common/decorators/auth.decorator';
 import { ApiController } from 'src/common/decorators/custom-controller.decorator';
-import { FileUploadService } from 'src/file-upload/file-upload.service';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { UpdatePasswordDto } from './dto/update-password.dto';
+import { FileUploadService } from 'src/file-upload/file-upload.service';
 
 @Auth()
 @ApiController('users')
