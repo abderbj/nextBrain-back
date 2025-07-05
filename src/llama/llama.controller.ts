@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Param, Patch, Get, HttpException, HttpStatus, Req } from '@nestjs/common';
+import { Controller, Post, Body, Param, Patch, Get, Delete, HttpException, HttpStatus, Req } from '@nestjs/common';
 import { ChatCompetionMessageDto } from './dto/create-chat-completion.request';
 import { LlamaService, LlamaChatMetadata } from './llama.service';
 import { Auth } from '../common/decorators/auth.decorator';
@@ -51,8 +51,8 @@ export class LlamaController {
     }
 
     @Get(':chatId')
-    async getChat(@Param('chatId') chatId: string): Promise<LlamaChatMetadata> {
-        const chat = await this.llamaService.getChat(parseInt(chatId));
+    async getChat(@Param('chatId') chatId: string, @Req() req: RequestWithUser): Promise<LlamaChatMetadata> {
+        const chat = await this.llamaService.getChat(parseInt(chatId), req.user.id);
         if (!chat) throw new HttpException('Chat not found', HttpStatus.NOT_FOUND);
         return chat;
     }
@@ -60,5 +60,25 @@ export class LlamaController {
     @Get()
     async listChats(@Req() req: RequestWithUser) {
         return await this.llamaService.listChats(req.user.id);
+    }
+
+    @Delete('all')
+    async deleteAllChats(@Req() req: RequestWithUser) {
+        try {
+            const deletedCount = await this.llamaService.deleteAllChats(req.user.id);
+            return { success: true, message: `${deletedCount} chats deleted successfully` };
+        } catch (e) {
+            throw new HttpException(e.message || 'Failed to delete chats', HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    @Delete(':chatId')
+    async deleteChat(@Param('chatId') chatId: string, @Req() req: RequestWithUser) {
+        try {
+            await this.llamaService.deleteChat(parseInt(chatId), req.user.id);
+            return { success: true, message: 'Chat deleted successfully' };
+        } catch (e) {
+            throw new HttpException(e.message || 'Chat not found', HttpStatus.NOT_FOUND);
+        }
     }
 }

@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Param, Patch, Get, HttpException, HttpStatus, Req } from '@nestjs/common';
+import { Controller, Post, Body, Param, Patch, Get, Delete, HttpException, HttpStatus, Req } from '@nestjs/common';
 import { ChatCompletionMessageDto } from './dto/create-chat-completion.request';
 import { GeminiService, GeminiChatMetadata } from './gemini.service';
 import { Auth } from '../common/decorators/auth.decorator';
@@ -59,8 +59,8 @@ export class GeminiController {
     }
 
     @Get(':chatId')
-    async getChat(@Param('chatId') chatId: string): Promise<GeminiChatMetadata> {
-        const chat = await this.geminiService.getChat(parseInt(chatId));
+    async getChat(@Param('chatId') chatId: string, @Req() req: RequestWithUser): Promise<GeminiChatMetadata> {
+        const chat = await this.geminiService.getChat(parseInt(chatId), req.user.id);
         if (!chat) throw new HttpException('Chat not found', HttpStatus.NOT_FOUND);
         return chat;
     }
@@ -68,5 +68,25 @@ export class GeminiController {
     @Get()
     async listChats(@Req() req: RequestWithUser) {
         return await this.geminiService.listChats(req.user.id);
+    }
+
+    @Delete('all')
+    async deleteAllChats(@Req() req: RequestWithUser) {
+        try {
+            const deletedCount = await this.geminiService.deleteAllChats(req.user.id);
+            return { success: true, message: `${deletedCount} chats deleted successfully` };
+        } catch (e) {
+            throw new HttpException(e.message, HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    @Delete(':chatId')
+    async deleteChat(@Param('chatId') chatId: string, @Req() req: RequestWithUser) {
+        try {
+            await this.geminiService.deleteChat(parseInt(chatId), req.user.id);
+            return { success: true, message: 'Chat deleted successfully' };
+        } catch (e) {
+            throw new HttpException(e.message, HttpStatus.NOT_FOUND);
+        }
     }
 }

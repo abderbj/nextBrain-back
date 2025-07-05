@@ -18,15 +18,18 @@ export class UsersService {
     private readonly hashService: HashService,
   ) {}
   async create(createUserDto: CreateUserDto) {
-    // Check invitation before creating user
-    const invitation = await this.prisma.invitation.findUnique({
-      where: { email: createUserDto.email },
-    });
-    if (!invitation || !invitation.accepted) {
-      throw new ForbiddenException(
-        'Registration is only allowed for invited users who have accepted their invitation.',
-      );
+    // Check invitation before creating user (only in production)
+    if (process.env.NODE_ENV === 'production') {
+      const invitation = await this.prisma.invitation.findUnique({
+        where: { email: createUserDto.email },
+      });
+      if (!invitation || !invitation.accepted) {
+        throw new ForbiddenException(
+          'Registration is only allowed for invited users who have accepted their invitation.',
+        );
+      }
     }
+    
     await this.checkIfUserExists(createUserDto.email, createUserDto.username);
 
     // hash password
@@ -44,7 +47,7 @@ export class UsersService {
         bio: createUserDto.bio,
         location: createUserDto.location,
         password_hash,
-        is_verified: true, // Auto-verify users who register through accepted invitations
+        is_verified: process.env.NODE_ENV === 'development' ? true : true, // Auto-verify in development
       },
       select: this.userSafeFields,
     });

@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { ChatCompetionMessageDto } from './dto/create-chat-completion.request';
 import axios from 'axios';
 import { PrismaService } from '../prisma/prisma.service';
-import { SenderType } from '@prisma/client';
+import { SenderType, ModelType } from '@prisma/client';
 
 export interface LlamaChatMetadata {
     id: number;
@@ -34,16 +34,20 @@ export class LlamaService {
             data: {
                 title,
                 user_id: userId,
+                model_type: ModelType.LLAMA,
             },
         });
         return conversation.id;
     }
 
     async updateChatTitle(chatId: number, title: string) {
-        const conversation = await this.prisma.chatbotConversation.findUnique({
-            where: { id: chatId },
+        const conversation = await this.prisma.chatbotConversation.findFirst({
+            where: { 
+                id: chatId,
+                model_type: ModelType.LLAMA
+            },
         });
-        if (!conversation) throw new Error('Chat not found');
+        if (!conversation) throw new Error('Llama chat not found');
         
         await this.prisma.chatbotConversation.update({
             where: { id: chatId },
@@ -55,8 +59,11 @@ export class LlamaService {
         chatId: number,
         message: ChatCompetionMessageDto
     ): Promise<{ response: string | null }> {
-        const conversation = await this.prisma.chatbotConversation.findUnique({
-            where: { id: chatId },
+        const conversation = await this.prisma.chatbotConversation.findFirst({
+            where: { 
+                id: chatId,
+                model_type: ModelType.LLAMA
+            },
             include: {
                 messages: {
                     orderBy: { sent_at: 'asc' },
@@ -64,7 +71,7 @@ export class LlamaService {
             },
         });
         
-        if (!conversation) throw new Error('Chat not found');
+        if (!conversation) throw new Error('Llama chat not found');
 
         // Set title from first user message if it's still "New Chat"
         if (
@@ -139,10 +146,13 @@ export class LlamaService {
 
     // Regenerate last assistant response
     async regenerateLastResponse(chatId: number): Promise<{ response: string | null }> {
-        const conversation = await this.prisma.chatbotConversation.findUnique({
-            where: { id: chatId },
+        const conversation = await this.prisma.chatbotConversation.findFirst({
+            where: { 
+                id: chatId,
+                model_type: ModelType.LLAMA
+            },
         });
-        if (!conversation) throw new Error('Chat not found');
+        if (!conversation) throw new Error('Llama chat not found');
         
         // Remove last BOT message
         const lastBotMessage = await this.prisma.chatbotMessage.findFirst({
@@ -207,9 +217,13 @@ export class LlamaService {
         }
     }
 
-    async getChat(chatId: number): Promise<LlamaChatMetadata | null> {
-        const conversation = await this.prisma.chatbotConversation.findUnique({
-            where: { id: chatId },
+    async getChat(chatId: number, userId: number): Promise<LlamaChatMetadata | null> {
+        const conversation = await this.prisma.chatbotConversation.findFirst({
+            where: { 
+                id: chatId,
+                user_id: userId,
+                model_type: ModelType.LLAMA
+            },
             include: {
                 messages: {
                     orderBy: { sent_at: 'asc' },
@@ -235,7 +249,10 @@ export class LlamaService {
 
     async listChats(userId: number) {
         const conversations = await this.prisma.chatbotConversation.findMany({
-            where: { user_id: userId },
+            where: { 
+                user_id: userId,
+                model_type: ModelType.LLAMA
+            },
             orderBy: { updated_at: 'desc' },
         });
         
@@ -245,5 +262,60 @@ export class LlamaService {
             createdAt: conversation.started_at,
             updatedAt: conversation.updated_at,
         }));
+    }
+
+    async deleteChat(chatId: number, userId: number): Promise<void> {
+        const conversation = await this.prisma.chatbotConversation.findFirst({
+            where: { 
+                id: chatId,
+                user_id: userId,
+                model_type: ModelType.LLAMA,
+            },
+        });
+        
+        if (!conversation) {
+            throw new Error('Llama chat not found or you do not have permission to delete it');
+        }
+
+        // Delete all messages first (due to foreign key constraints)
+        await this.prisma.chatbotMessage.deleteMany({
+            where: { conversation_id: chatId },
+        });
+
+        // Then delete the conversation
+        await this.prisma.chatbotConversation.delete({
+            where: { id: chatId },
+        });
+    }
+
+    async deleteAllChats(userId: number): Promise<number> {
+        // Get all conversation IDs for this user (Llama only)
+        const conversations = await this.prisma.chatbotConversation.findMany({
+            where: { 
+                user_id: userId,
+                model_type: ModelType.LLAMA
+            },
+            select: { id: true },
+        });
+
+        const conversationIds = conversations.map(conv => conv.id);
+        const count = conversationIds.length;
+
+        if (conversationIds.length > 0) {
+            // Delete all messages for all conversations
+            await this.prisma.chatbotMessage.deleteMany({
+                where: { conversation_id: { in: conversationIds } },
+            });
+
+            // Delete all conversations (Llama only)
+            await this.prisma.chatbotConversation.deleteMany({
+                where: { 
+                    user_id: userId,
+                    model_type: ModelType.LLAMA
+                },
+            });
+        }
+
+        return count;
     }
 }
