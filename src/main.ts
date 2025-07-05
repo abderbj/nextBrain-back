@@ -31,8 +31,8 @@ async function bootstrap() {
   app.use(helmet());
 
   const config = new DocumentBuilder()
-    .setTitle('FarmLink')
-    .setDescription('The API description for FarmLink')
+    .setTitle('NextBrain')
+    .setDescription('The API description for NextBrain - AI-powered chatbot application')
     .setVersion('1.0')
     .addBearerAuth(
       {

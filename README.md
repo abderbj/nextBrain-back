@@ -1,4 +1,4 @@
-# FarmLink Backend
+# NextBrain Backend
 
 ## Quick Project Setup
 
@@ -9,8 +9,8 @@ Follow these steps to set up the project locally:
 1. Clone the repository:
 
    ```bash
-   git clone https://github.com/FarmLink-ppp/farmlink-backend.git
-   cd farmlink-backend
+   git clone https://github.com/your-org/nextbrain-backend.git
+   cd nextbrain-backend
    ```
 
 2. Install dependencies:
@@ -44,11 +44,11 @@ Follow these steps to set up the project locally:
 
    1- navigate to services in windows and start the PostgreSQL service.
    3- create a new user with the username `your_username` and password `your_password`.
-   4- create a new database with the name `farmlink` and assign the user you created as the owner.
+   4- create a new database with the name `nextbrain` and assign the user you created as the owner.
    5- update the `.env` file with the database connection details.
 
    ```bash
-   DATABASE_URL=postgresql://your_username:your_password@localhost:5432/farmlink
+   DATABASE_URL=postgresql://your_username:your_password@localhost:5432/nextbrain
    ```
 
 5. Run database migrations to set up the initial schema:
