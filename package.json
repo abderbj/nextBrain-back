@@ -1,7 +1,7 @@
 {
-  "name": "farmlink-backend",
+  "name": "nextbrain-backend",
   "version": "0.0.1",
-  "description": "",
+  "description": "NextBrain Backend API - AI-powered chatbot application with user management and invitations",
   "author": "",
   "private": true,
   "license": "UNLICENSED",

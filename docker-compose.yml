@@ -17,7 +17,7 @@ services:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - POSTGRES_DB=${POSTGRES_DB}
     volumes:
-      - db_data_farmlink:/var/lib/postgresql/data
+      - db_data_nextbrain:/var/lib/postgresql/data
 
 volumes:
-  db_data_farmlink:
+  db_data_nextbrain:

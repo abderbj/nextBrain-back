@@ -117,7 +117,6 @@ export class LlamaService {
                 messages: llamaMessages,
                 stream: false,
             });
-            console.log('Llama API response:', response.data);
 
             const aiMessage = response.data.message;
             if (aiMessage && aiMessage.content) {
