@@ -1,21 +1,26 @@
 import { PrismaClient } from '@prisma/client';
+import { seedDatabase } from './seedData';
 
 async function main() {
   const prisma = new PrismaClient();
 
   try {
     await prisma.$connect();
+    console.log('🔌 Connected to database');
     console.log('Starting database seeding...');
 
-    // No seeders currently available
-    console.log('No seeders to run.');
+    // Run the comprehensive seed
+    const result = await seedDatabase();
+    
+    console.log('\n🎉 Database seeding completed successfully!');
+    console.log('Summary:', result);
 
-    console.log('Database seeding completed successfully!');
   } catch (error) {
-    console.error('Error during database seeding:', error);
+    console.error('❌ Error during database seeding:', error);
     process.exit(1);
   } finally {
     await prisma.$disconnect();
+    console.log('🔌 Disconnected from database');
   }
 }
 
