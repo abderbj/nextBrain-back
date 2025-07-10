@@ -33,8 +33,8 @@ import { InvitationsModule } from './invitations/invitations.module';
         throttlers: [
           {
             name: 'default',
-            ttl: configService.get<number>('THROTTLE_TTL', 60000),
-            limit: configService.get<number>('THROTTLE_LIMIT', 10),
+            ttl: configService.get<number>('THROTTLE_TTL', 100),
+            limit: configService.get<number>('THROTTLE_LIMIT', 600),
           },
         ],
       }),

@@ -1,0 +1,28 @@
+# NextBrain Backend Development Dockerfile
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Install nodemon globally for development
+RUN npm install -g nodemon
+
+# Copy package files
+COPY package*.json ./
+
+# Install all dependencies (including dev dependencies)
+RUN npm install
+
+# Copy prisma schema
+COPY prisma ./prisma/
+
+# Generate Prisma client
+RUN npx prisma generate
+
+# Create uploads directory
+RUN mkdir -p uploads/users
+
+# Expose port and debug port
+EXPOSE 3000 9229
+
+# Start the application in development mode
+CMD ["npm", "run", "start:dev"]

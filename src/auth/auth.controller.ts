@@ -181,6 +181,17 @@ async verifyEmailWithLink(@Query('token') token: string, @Res() res: Response) {
     return req.user;
   }
 
+  @Get('me')
+  @Auth()
+  @ApiOperation({ summary: 'Get current user' })
+  @ApiResponse({
+    status: 200,
+    description: 'Current user information',
+  })
+  getCurrentUser(@Req() req: Request) {
+    return req.user;
+  }
+
   @Post('logout')
   @HttpCode(200)
   @ApiOperation({ summary: 'Logout user' })
