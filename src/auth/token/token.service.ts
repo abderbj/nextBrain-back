@@ -100,9 +100,11 @@ export class TokenService {
       secure: useSecure,
       sameSite: 'lax' as const,
       path: '/',
+      // Don't set domain for IP addresses - let browser handle it
+      ...(hostIP ? {} : { domain: undefined })
     };
     
-    console.log('Setting cookies with options:', { ...cookieOptions, hostIP, isProd });
+    console.log('Setting cookies with options:', { ...cookieOptions, hostIP, isProd, useSecure });
     
     res.cookie('access_token', tokens.accessToken, {
       ...cookieOptions,
