@@ -90,29 +90,20 @@ export class TokenService {
     tokens: { accessToken: string; refreshToken: string },
   ) {
     const isProd = this.configService.get<string>('NODE_ENV') === 'production';
-    const frontendUrl = this.configService.get<string>('FRONTEND_URL');
+    const hostIP = this.configService.get<string>('HOST_IP');
     
-    // Extract domain from frontend URL for cookie setting
-    let domain: string | undefined;
-    if (frontendUrl) {
-      try {
-        const url = new URL(frontendUrl);
-        // For IP addresses, don't set domain (use default)
-        if (!/^\d+\.\d+\.\d+\.\d+$/.test(url.hostname)) {
-          domain = url.hostname;
-        }
-      } catch (error) {
-        console.warn('Could not parse frontend URL for domain:', error);
-      }
-    }
-
+    // For VM deployments with IP addresses, don't use secure cookies since we're using HTTP
+    const useSecure = isProd && !hostIP;
+    
     const cookieOptions = {
       httpOnly: true,
-      secure: isProd, // Only secure in production (requires HTTPS)
+      secure: useSecure,
       sameSite: 'lax' as const,
-      ...(domain && { domain }), // Only set domain if it's not an IP address
+      path: '/',
     };
-
+    
+    console.log('Setting cookies with options:', { ...cookieOptions, hostIP, isProd });
+    
     res.cookie('access_token', tokens.accessToken, {
       ...cookieOptions,
       maxAge: 24 * 60 * 60 * 1000, // 1 day
@@ -125,7 +116,8 @@ export class TokenService {
   }
 
   clearCookies(res: Response) {
-    res.clearCookie('access_token', { path: '/' });
-    res.clearCookie('refresh_token', { path: '/' });
+    const cookieOptions = { path: '/', httpOnly: true, sameSite: 'lax' as const };
+    res.clearCookie('access_token', cookieOptions);
+    res.clearCookie('refresh_token', cookieOptions);
   }
 }
