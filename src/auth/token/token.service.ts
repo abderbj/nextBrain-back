@@ -90,17 +90,36 @@ export class TokenService {
     tokens: { accessToken: string; refreshToken: string },
   ) {
     const isProd = this.configService.get<string>('NODE_ENV') === 'production';
-    res.cookie('access_token', tokens.accessToken, {
+    const frontendUrl = this.configService.get<string>('FRONTEND_URL');
+    
+    // Extract domain from frontend URL for cookie setting
+    let domain: string | undefined;
+    if (frontendUrl) {
+      try {
+        const url = new URL(frontendUrl);
+        // For IP addresses, don't set domain (use default)
+        if (!/^\d+\.\d+\.\d+\.\d+$/.test(url.hostname)) {
+          domain = url.hostname;
+        }
+      } catch (error) {
+        console.warn('Could not parse frontend URL for domain:', error);
+      }
+    }
+
+    const cookieOptions = {
       httpOnly: true,
-      secure: isProd,
-      sameSite: 'lax',
+      secure: isProd, // Only secure in production (requires HTTPS)
+      sameSite: 'lax' as const,
+      ...(domain && { domain }), // Only set domain if it's not an IP address
+    };
+
+    res.cookie('access_token', tokens.accessToken, {
+      ...cookieOptions,
       maxAge: 24 * 60 * 60 * 1000, // 1 day
     });
 
     res.cookie('refresh_token', tokens.refreshToken, {
-      httpOnly: true,
-      secure: isProd,
-      sameSite: 'lax',
+      ...cookieOptions,
       maxAge: 30 * 60 * 60 * 24 * 1000, // 30 days
     });
   }

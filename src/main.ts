@@ -8,9 +8,29 @@ import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  
+  // Get environment variables
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:8080';
+  const plantHealthBaseUrl = process.env.PLANT_HEALTH_BASE_URL;
+  const isProduction = process.env.NODE_ENV === 'production';
+  
+  // Configure CORS with proper credentials support
+  const corsOrigins = [frontendUrl];
+  if (plantHealthBaseUrl) {
+    corsOrigins.push(plantHealthBaseUrl);
+  }
+  
+  // In development, also allow localhost variations
+  if (!isProduction) {
+    corsOrigins.push('http://localhost:3000', 'http://localhost:8080', 'http://127.0.0.1:3000', 'http://127.0.0.1:8080');
+  }
+  
   app.enableCors({
-    origin: [process.env.FRONTEND_URL, process.env.PLANT_HEALTH_BASE_URL],
+    origin: corsOrigins,
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+    exposedHeaders: ['Set-Cookie'],
   });
 
   app.setGlobalPrefix('api');
