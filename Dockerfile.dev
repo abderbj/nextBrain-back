@@ -3,8 +3,8 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Install nodemon globally for development
-RUN npm install -g nodemon
+# Install nodemon and NestJS CLI globally for development
+RUN npm install -g nodemon @nestjs/cli
 
 # Copy package files
 COPY package*.json ./
