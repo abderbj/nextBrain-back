@@ -1,10 +1,10 @@
 # NextBrain Backend Development Dockerfile
-FROM node:20-alpine
+FROM node:18-alpine
 
 WORKDIR /app
 
-# Install nodemon and NestJS CLI globally for development
-RUN npm install -g nodemon @nestjs/cli
+# Install nodemon globally for development
+RUN npm install -g nodemon
 
 # Copy package files
 COPY package*.json ./

@@ -1,5 +1,5 @@
 # NextBrain Backend Dockerfile
-FROM node:20-alpine
+FROM node:18-alpine
 
 WORKDIR /app
 
@@ -29,4 +29,4 @@ RUN mkdir -p uploads/users
 EXPOSE 3000
 
 # Start the application
-CMD ["npm", "run", "start:prod"]
+CMD ["npm", "run", "start:dev"]
