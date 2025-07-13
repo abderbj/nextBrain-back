@@ -13,6 +13,7 @@ async function bootstrap() {
   const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:8080';
   const plantHealthBaseUrl = process.env.PLANT_HEALTH_BASE_URL;
   const isProduction = process.env.NODE_ENV === 'production';
+  const hostIp = process.env.HOST_IP;
   
   // Configure CORS with proper credentials support
   const corsOrigins = [frontendUrl];
@@ -20,10 +21,18 @@ async function bootstrap() {
     corsOrigins.push(plantHealthBaseUrl);
   }
   
-  // In development, also allow localhost variations
-  if (!isProduction) {
-    corsOrigins.push('http://localhost:3000', 'http://localhost:8080', 'http://127.0.0.1:3000', 'http://127.0.0.1:8080');
+  // Always allow localhost variations for development
+  corsOrigins.push('http://localhost:3000', 'http://localhost:8080', 'http://127.0.0.1:3000', 'http://127.0.0.1:8080');
+  
+  // If HOST_IP is set (VM deployment), add those origins as well
+  if (hostIp && hostIp !== 'localhost') {
+    corsOrigins.push(`http://${hostIp}:3000`, `http://${hostIp}:8080`);
   }
+  
+  // Log CORS configuration for debugging
+  console.log('CORS Origins allowed:', corsOrigins);
+  console.log('HOST_IP:', hostIp);
+  console.log('FRONTEND_URL:', frontendUrl);
   
   app.enableCors({
     origin: corsOrigins,
