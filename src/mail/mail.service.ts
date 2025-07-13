@@ -8,17 +8,50 @@ import * as path from 'path';
 @Injectable()
 export class EmailService {
   private transporter: nodemailer.Transporter;
+  private isConfigured: boolean = false;
 
   constructor(private readonly configService: ConfigService) {
-    this.transporter = nodemailer.createTransport({
-      host: this.configService.get<string>('MAIL_HOST'),
-      port: this.configService.get<number>('MAIL_PORT'),
-      secure: this.configService.get<boolean>('MAIL_SECURE') === true,
-      auth: {
-        user: this.configService.get<string>('MAIL_USER'),
-        pass: this.configService.get<string>('MAIL_PASS'),
-      },
+    this.initializeTransporter();
+  }
+
+  private initializeTransporter() {
+    const mailHost = this.configService.get<string>('MAIL_HOST') || this.configService.get<string>('SMTP_HOST');
+    const mailPort = this.configService.get<number>('MAIL_PORT') || this.configService.get<number>('SMTP_PORT');
+    const mailUser = this.configService.get<string>('MAIL_USER') || this.configService.get<string>('SMTP_USER');
+    const mailPass = this.configService.get<string>('MAIL_PASS') || this.configService.get<string>('SMTP_PASS');
+    const mailSecure = this.configService.get<boolean>('MAIL_SECURE') === true;
+
+    console.log('Email configuration:', {
+      host: mailHost,
+      port: mailPort,
+      user: mailUser,
+      hasPassword: !!mailPass,
+      secure: mailSecure
     });
+
+    if (!mailHost || !mailPort || !mailUser || !mailPass) {
+      console.warn('⚠️ Email service is not properly configured. Missing required environment variables:');
+      console.warn('Required: MAIL_HOST (or SMTP_HOST), MAIL_PORT (or SMTP_PORT), MAIL_USER (or SMTP_USER), MAIL_PASS (or SMTP_PASS)');
+      this.isConfigured = false;
+      return;
+    }
+
+    try {
+      this.transporter = nodemailer.createTransport({
+        host: mailHost,
+        port: mailPort,
+        secure: mailSecure,
+        auth: {
+          user: mailUser,
+          pass: mailPass,
+        },
+      });
+      this.isConfigured = true;
+      console.log('✅ Email transporter configured successfully');
+    } catch (error) {
+      console.error('❌ Failed to configure email transporter:', error);
+      this.isConfigured = false;
+    }
   }
 
   private compileTemplate(templateName: string, data: any) {
@@ -42,6 +75,11 @@ export class EmailService {
     name: string,
     token: string,
   ): Promise<void> {
+    if (!this.isConfigured) {
+      console.warn('⚠️ Email service not configured. Skipping verification email.');
+      return;
+    }
+
     const backendUrl = this.configService.get<string>('BACKEND_URL');
     const verificationUrl = `${backendUrl}/api/auth/verify-email?token=${token}`;
 
@@ -50,12 +88,19 @@ export class EmailService {
       verificationUrl,
       token,
     });
-    await this.transporter.sendMail({
-      from: `"${this.configService.get<string>('MAIL_FROM_NAME')}" <${this.configService.get<string>('MAIL_FROM')}>`,
-      to: email,
-      subject: 'Verify Your Email Address',
-      html,
-    });
+    
+    try {
+      await this.transporter.sendMail({
+        from: `"${this.configService.get<string>('MAIL_FROM_NAME')}" <${this.configService.get<string>('MAIL_FROM') || this.configService.get<string>('SMTP_USER')}>`,
+        to: email,
+        subject: 'Verify Your Email Address',
+        html,
+      });
+      console.log(`✅ Verification email sent successfully to: ${email}`);
+    } catch (error) {
+      console.error('❌ Failed to send verification email:', error);
+      throw new Error('Failed to send verification email');
+    }
   }
 
   async sendPasswordResetEmail(
@@ -63,6 +108,11 @@ export class EmailService {
     name: string,
     token: string,
   ): Promise<void> {
+    if (!this.isConfigured) {
+      console.warn('⚠️ Email service not configured. Skipping password reset email.');
+      return;
+    }
+
     const frontendUrl = this.configService.get<string>('FRONTEND_URL');
     const resetUrl = `${frontendUrl}/reset-password`;
 
@@ -72,15 +122,32 @@ export class EmailService {
       token,
     });
 
-    await this.transporter.sendMail({
-      from: `"${this.configService.get<string>('MAIL_FROM_NAME')}" <${this.configService.get<string>('MAIL_FROM')}>`,
-      to: email,
-      subject: 'Reset Your Password',
-      html,
-    });
+    try {
+      await this.transporter.sendMail({
+        from: `"${this.configService.get<string>('MAIL_FROM_NAME')}" <${this.configService.get<string>('MAIL_FROM') || this.configService.get<string>('SMTP_USER')}>`,
+        to: email,
+        subject: 'Reset Your Password',
+        html,
+      });
+      console.log(`✅ Password reset email sent successfully to: ${email}`);
+    } catch (error) {
+      console.error('❌ Failed to send password reset email:', error);
+      throw new Error('Failed to send password reset email');
+    }
   }
 
   async sendInvitationEmail(email: string, token: string): Promise<void> {
+    if (!this.isConfigured) {
+      console.warn('⚠️ Email service not configured. Skipping invitation email.');
+      console.warn('To enable email functionality, please configure the following environment variables:');
+      console.warn('- MAIL_HOST (or SMTP_HOST): SMTP server hostname');
+      console.warn('- MAIL_PORT (or SMTP_PORT): SMTP server port');
+      console.warn('- MAIL_USER (or SMTP_USER): SMTP username');
+      console.warn('- MAIL_PASS (or SMTP_PASS): SMTP password');
+      console.warn('- MAIL_FROM_NAME: Sender name');
+      return;
+    }
+
     const backendUrl = this.configService.get<string>('BACKEND_URL');
     const invitationUrl = `${backendUrl}/api/invitations/accept-invitation?token=${token}`;
     const html = this.compileTemplate('invitation', {
@@ -90,7 +157,7 @@ export class EmailService {
     
     try {
       await this.transporter.sendMail({
-        from: `"${this.configService.get<string>('MAIL_FROM_NAME')}" <${this.configService.get<string>('MAIL_FROM')}>`,
+        from: `"${this.configService.get<string>('MAIL_FROM_NAME')}" <${this.configService.get<string>('MAIL_FROM') || this.configService.get<string>('SMTP_USER')}>`,
         to: email,
         subject: 'You are invited to join NextBrain',
         html,
