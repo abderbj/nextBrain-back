@@ -4,6 +4,7 @@ import { ChatCompetionMessageDto } from './dto/create-chat-completion.request';
 import axios from 'axios';
 import { PrismaService } from '../prisma/prisma.service';
 import { SenderType, ModelType } from '@prisma/client';
+import { log } from 'node:console';
 
 export interface LlamaChatMetadata {
     id: number;
@@ -126,6 +127,7 @@ export class LlamaService {
             });
             
             const aiMessage = response.data.message;
+            log('Llama response:', aiMessage);
             if (aiMessage && aiMessage.content) {
                 // Save AI response to database
                 await this.prisma.chatbotMessage.create({
