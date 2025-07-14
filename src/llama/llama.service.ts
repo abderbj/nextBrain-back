@@ -120,11 +120,11 @@ export class LlamaService {
         try {
             // Send all messages to Llama
             const response = await axios.post(this.baseUrl, {
-                model: 'llama3.2',
+                model: 'llama3.2:latest',
                 messages: llamaMessages,
                 stream: false,
             });
-
+            
             const aiMessage = response.data.message;
             if (aiMessage && aiMessage.content) {
                 // Save AI response to database
