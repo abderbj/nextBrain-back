@@ -27,7 +27,7 @@ export class LlamaService {
         private readonly prisma: PrismaService,
         private readonly configService: ConfigService,
     ) {
-        this.baseUrl = this.configService.get<string>('LLAMA_API_URL') || 'http://localhost:11434/api/chat';
+        this.baseUrl = this.configService.get<string>('LLAMA_API_URL') || 'http://127.0.0.1:11434/api/chat';
     }
 
     async createChat(userId: number, title = 'New Chat'): Promise<number> {
