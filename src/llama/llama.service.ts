@@ -27,7 +27,7 @@ export class LlamaService {
         private readonly prisma: PrismaService,
         private readonly configService: ConfigService,
     ) {
-        this.baseUrl = this.configService.get<string>('LLAMA_API_URL') || 'http://10.9.21.254:11434/api/chat';
+        this.baseUrl = this.configService.get<string>('LLAMA_API_URL') || 'http://localhost:11434/api/chat';
     }
 
     async createChat(userId: number, title = 'New Chat'): Promise<number> {
@@ -119,11 +119,23 @@ export class LlamaService {
         })));
 
         try {
+            console.log('Sending request to Llama API:', this.baseUrl);
+            console.log('Request payload:', {
+                model: 'llama3.2:latest',
+                messages: llamaMessages,
+                stream: false,
+            });
+            
             // Send all messages to Llama
             const response = await axios.post(this.baseUrl, {
                 model: 'llama3.2:latest',
                 messages: llamaMessages,
                 stream: false,
+            }, {
+                timeout: 30000, // 30 second timeout
+                headers: {
+                    'Content-Type': 'application/json',
+                }
             });
             
             const aiMessage = response.data.message;
@@ -141,8 +153,18 @@ export class LlamaService {
             }
             return { response: null };
         } catch (error) {
-            console.error('Llama API error:', error.response?.data || error.message);
-            throw new Error('Failed to get response from Llama');
+            console.error('Llama API error details (addMessageAndGetCompletion):');
+            console.error('- URL:', this.baseUrl);
+            console.error('- Error message:', error.message);
+            console.error('- Error code:', error.code);
+            console.error('- Response status:', error.response?.status);
+            console.error('- Response data:', error.response?.data);
+            
+            if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+                throw new Error(`Cannot connect to Ollama at ${this.baseUrl}. Make sure Ollama is running and accessible.`);
+            }
+            
+            throw new Error(`Failed to get response from Llama: ${error.message}`);
         }
     }
 
@@ -193,11 +215,17 @@ export class LlamaService {
         })));
 
         try {
+            console.log('Regenerating response - sending request to Llama API:', this.baseUrl);
             // Re-send to Llama
             const response = await axios.post(this.baseUrl, {
-                model: 'llama3.2',
+                model: 'llama3.2:latest',
                 messages: llamaMessages,
                 stream: false,
+            }, {
+                timeout: 30000, // 30 second timeout
+                headers: {
+                    'Content-Type': 'application/json',
+                }
             });
 
             const aiMessage = response.data.message;
@@ -214,8 +242,18 @@ export class LlamaService {
             }
             return { response: null };
         } catch (error) {
-            console.error('Llama API error:', error.response?.data || error.message);
-            throw new Error('Failed to get response from Llama');
+            console.error('Llama API error details (regenerateLastResponse):');
+            console.error('- URL:', this.baseUrl);
+            console.error('- Error message:', error.message);
+            console.error('- Error code:', error.code);
+            console.error('- Response status:', error.response?.status);
+            console.error('- Response data:', error.response?.data);
+            
+            if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+                throw new Error(`Cannot connect to Ollama at ${this.baseUrl}. Make sure Ollama is running and accessible.`);
+            }
+            
+            throw new Error(`Failed to get response from Llama: ${error.message}`);
         }
     }
 
@@ -319,5 +357,62 @@ export class LlamaService {
         }
 
         return count;
+    }
+
+    async checkOllamaConnection(): Promise<{ status: string; message: string; url: string }> {
+        try {
+            console.log('Testing connection to Ollama at:', this.baseUrl);
+            
+            // Try to get available models first
+            const modelsUrl = this.baseUrl.replace('/api/chat', '/api/tags');
+            const modelsResponse = await axios.get(modelsUrl, {
+                timeout: 10000,
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            });
+            
+            console.log('Available models:', modelsResponse.data);
+            
+            // Check if llama3.2 is available
+            const models = modelsResponse.data.models || [];
+            const llamaModel = models.find(model => model.name.includes('llama3.2'));
+            
+            if (!llamaModel) {
+                return {
+                    status: 'warning',
+                    message: 'Connected to Ollama but llama3.2 model not found. Available models: ' + 
+                            models.map(m => m.name).join(', '),
+                    url: this.baseUrl
+                };
+            }
+            
+            return {
+                status: 'success',
+                message: 'Successfully connected to Ollama and llama3.2 model is available',
+                url: this.baseUrl
+            };
+            
+        } catch (error) {
+            console.error('Ollama connection test failed:', error.message);
+            
+            let errorMessage = `Failed to connect to Ollama at ${this.baseUrl}`;
+            
+            if (error.code === 'ECONNREFUSED') {
+                errorMessage += ' - Connection refused. Is Ollama running?';
+            } else if (error.code === 'ENOTFOUND') {
+                errorMessage += ' - Host not found. Check the URL.';
+            } else if (error.code === 'ETIMEDOUT') {
+                errorMessage += ' - Connection timed out. Check network connectivity.';
+            } else {
+                errorMessage += ` - ${error.message}`;
+            }
+            
+            return {
+                status: 'error',
+                message: errorMessage,
+                url: this.baseUrl
+            };
+        }
     }
 }
