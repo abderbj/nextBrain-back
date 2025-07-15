@@ -27,7 +27,8 @@ export class LlamaService {
         private readonly prisma: PrismaService,
         private readonly configService: ConfigService,
     ) {
-        this.baseUrl = this.configService.get<string>('LLAMA_API_URL') || 'http://localhost:11434/api/chat';
+        this.baseUrl = this.configService.get<string>('LLAMA_API_URL') || 'http://host.docker.internal:11434/api/chat';
+        console.log('Llama service initialized with URL:', this.baseUrl);
     }
 
     async createChat(userId: number, title = 'New Chat'): Promise<number> {
