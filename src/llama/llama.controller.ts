@@ -5,27 +5,25 @@ import { Auth } from '../common/decorators/auth.decorator';
 import { RequestWithUser } from '../common/types/auth.types';
 
 @Controller('llama')
-export class LlamaPublicController {
+export class LlamaController {
     constructor(private readonly llamaService: LlamaService) { }
 
+    // Public health check endpoint (no auth required)
     @Get('health')
     async checkHealth() {
         return await this.llamaService.checkOllamaConnection();
     }
-}
 
-@Auth()
-@Controller('llama/chat')
-export class LlamaController {
-    constructor(private readonly llamaService: LlamaService) { }
-
-    @Post('create')
+    // All chat endpoints require authentication
+    @Auth()
+    @Post('chat/create')
     async createChat(@Req() req: RequestWithUser, @Body('title') title?: string) {
         const chatId = await this.llamaService.createChat(req.user.id, title);
         return { chatId };
     }
 
-    @Patch(':chatId/title')
+    @Auth()
+    @Patch('chat/:chatId/title')
     async updateTitle(@Param('chatId') chatId: string, @Body('title') title: string) {
         try {
             await this.llamaService.updateChatTitle(parseInt(chatId), title);
@@ -35,7 +33,8 @@ export class LlamaController {
         }
     }
 
-    @Post(':chatId/message')
+    @Auth()
+    @Post('chat/:chatId/message')
     async sendMessage(
         @Param('chatId') chatId: string,
         @Body() message: ChatCompetionMessageDto
@@ -51,7 +50,8 @@ export class LlamaController {
         }
     }
 
-    @Post(':chatId/regenerate')
+    @Auth()
+    @Post('chat/:chatId/regenerate')
     async regenerate(@Param('chatId') chatId: string) {
         try {
             return await this.llamaService.regenerateLastResponse(parseInt(chatId));
@@ -60,19 +60,22 @@ export class LlamaController {
         }
     }
 
-    @Get(':chatId')
+    @Auth()
+    @Get('chat/:chatId')
     async getChat(@Param('chatId') chatId: string, @Req() req: RequestWithUser): Promise<LlamaChatMetadata> {
         const chat = await this.llamaService.getChat(parseInt(chatId), req.user.id);
         if (!chat) throw new HttpException('Chat not found', HttpStatus.NOT_FOUND);
         return chat;
     }
 
-    @Get()
+    @Auth()
+    @Get('chat')
     async listChats(@Req() req: RequestWithUser) {
         return await this.llamaService.listChats(req.user.id);
     }
 
-    @Delete('all')
+    @Auth()
+    @Delete('chat/all')
     async deleteAllChats(@Req() req: RequestWithUser) {
         try {
             const deletedCount = await this.llamaService.deleteAllChats(req.user.id);
@@ -82,7 +85,8 @@ export class LlamaController {
         }
     }
 
-    @Delete(':chatId')
+    @Auth()
+    @Delete('chat/:chatId')
     async deleteChat(@Param('chatId') chatId: string, @Req() req: RequestWithUser) {
         try {
             await this.llamaService.deleteChat(parseInt(chatId), req.user.id);
