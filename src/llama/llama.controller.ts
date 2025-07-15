@@ -4,7 +4,6 @@ import { LlamaService, LlamaChatMetadata } from './llama.service';
 import { Auth } from '../common/decorators/auth.decorator';
 import { RequestWithUser } from '../common/types/auth.types';
 
-// Public health check controller (no auth required)
 @Controller('llama')
 export class LlamaPublicController {
     constructor(private readonly llamaService: LlamaService) { }
