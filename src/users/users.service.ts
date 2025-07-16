@@ -18,16 +18,21 @@ export class UsersService {
     private readonly hashService: HashService,
   ) {}
   async create(createUserDto: CreateUserDto) {
-    // Check invitation before creating user (only in production)
-    if (process.env.NODE_ENV === 'production') {
-      const invitation = await this.prisma.invitation.findUnique({
-        where: { email: createUserDto.email },
-      });
-      if (!invitation || !invitation.accepted) {
-        throw new ForbiddenException(
-          'Registration is only allowed for invited users who have accepted their invitation.',
-        );
-      }
+    // Check invitation before creating user (enforced in all environments)
+    const invitation = await this.prisma.invitation.findUnique({
+      where: { email: createUserDto.email },
+    });
+    if (!invitation || !invitation.accepted) {
+      throw new ForbiddenException(
+        'Registration is only allowed for invited users who have accepted their invitation.',
+      );
+    }
+
+    // Check if invitation has expired
+    if (invitation.expiresAt && new Date() > new Date(invitation.expiresAt)) {
+      throw new ForbiddenException(
+        'Your invitation has expired. Please contact an administrator for a new invitation.',
+      );
     }
     
     await this.checkIfUserExists(createUserDto.email, createUserDto.username);
@@ -47,7 +52,7 @@ export class UsersService {
         bio: createUserDto.bio,
         location: createUserDto.location,
         password_hash,
-        is_verified: process.env.NODE_ENV === 'development' ? true : true, // Auto-verify in development
+        is_verified: false, // User must verify email before logging in
       },
       select: this.userSafeFields,
     });
@@ -240,6 +245,54 @@ export class UsersService {
       where: { id },
       select: this.userSafeFields,
     });
+  }
+
+  async findInvitationByEmail(email: string) {
+    return await this.prisma.invitation.findUnique({
+      where: { email },
+      select: {
+        id: true,
+        email: true,
+        accepted: true,
+        expiresAt: true,
+        createdAt: true,
+      },
+    });
+  }
+
+  async checkInvitationStatus(email: string) {
+    const invitation = await this.findInvitationByEmail(email);
+    
+    if (!invitation) {
+      return {
+        hasInvitation: false,
+        message: 'No invitation found for this email address.',
+      };
+    }
+
+    if (!invitation.accepted) {
+      return {
+        hasInvitation: true,
+        accepted: false,
+        message: 'Invitation found but not accepted yet. Please check your email and accept the invitation.',
+      };
+    }
+
+    if (invitation.expiresAt && new Date() > new Date(invitation.expiresAt)) {
+      return {
+        hasInvitation: true,
+        accepted: true,
+        expired: true,
+        message: 'Invitation has expired. Please contact an administrator for a new invitation.',
+      };
+    }
+
+    return {
+      hasInvitation: true,
+      accepted: true,
+      expired: false,
+      message: 'Valid invitation found. You can proceed with registration.',
+    };
   }
 
   private get userSafeFields() {

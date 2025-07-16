@@ -17,6 +17,7 @@ import { EmailService } from 'src/mail/mail.service';
 import { HashService } from 'src/common/services/hash.service';
 import { User } from '@prisma/client';
 import { TokenService } from './token/token.service';
+import { PrismaService } from 'src/prisma/prisma.service';
 @Injectable()
 export class AuthService {
   constructor(
@@ -24,6 +25,7 @@ export class AuthService {
     private readonly emailService: EmailService,
     private readonly hashService: HashService,
     private readonly tokenService: TokenService,
+    private readonly prisma: PrismaService,
   ) {}
 
   async validateUser(
@@ -105,32 +107,42 @@ export class AuthService {
 
   async register(createUserDto: CreateUserDto) {
     try {
+      // Directly check invitation in the database using PrismaService
+      const invitation = await this.prisma.invitation.findUnique({
+        where: { email: createUserDto.email },
+      });
+      if (!invitation) {
+        throw new ForbiddenException(
+          'Registration is only allowed for invited users. Please contact an administrator to receive an invitation.',
+        );
+      }
+      if (!invitation.accepted) {
+        throw new ForbiddenException(
+          'Your invitation has not been accepted yet. Please accept your invitation first by clicking the link in your invitation email.',
+        );
+      }
       const newUser = await this.usersService.create(createUserDto);
-
       const {
         token: verificationToken,
         expiresAt: verificationTokenExpiration,
       } = this.hashService.generateTokenWithExpiration(16, 24);
-
       await this.usersService.updateVerificationToken(
         newUser.id,
         verificationToken,
         verificationTokenExpiration,
       );
-
       await this.emailService.sendVerificationEmail(
         newUser.email,
         newUser.full_name,
         verificationToken,
       );
-
       return {
         message:
           'Registration successful. Please check your email to verify your account.',
         user: newUser,
       };
     } catch (error) {
-      if (error instanceof ConflictException) {
+      if (error instanceof ConflictException || error instanceof ForbiddenException) {
         throw error;
       }
       throw new InternalServerErrorException(error, 'Registration failed');
