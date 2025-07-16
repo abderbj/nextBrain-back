@@ -55,18 +55,14 @@ async function bootstrap() {
   app.useGlobalFilters(new AllExceptionsFilter());
   app.use(cookieParser());
   
-  // Configure Helmet with custom CSP to allow form submissions
+  // Minimal helmet configuration for development - disable security features that force HTTPS
   app.use(helmet({
-    contentSecurityPolicy: {
-      directives: {
-        defaultSrc: ["'self'"],
-        styleSrc: ["'self'", "'unsafe-inline'"],
-        scriptSrc: ["'self'"],
-        formAction: ["'self'"], // Allow form submissions to same origin only
-        connectSrc: ["'self'"],
-        imgSrc: ["'self'", "data:"],
-      },
-    },
+    contentSecurityPolicy: false, // Completely disable CSP for now
+    hsts: false, // Disable HTTP Strict Transport Security
+    crossOriginOpenerPolicy: false, // Disable COOP that's causing warnings
+    crossOriginResourcePolicy: false, // Disable CORP
+    crossOriginEmbedderPolicy: false, // Disable COEP
+    originAgentCluster: false, // Disable Origin-Agent-Cluster
   }));
 
   const config = new DocumentBuilder()

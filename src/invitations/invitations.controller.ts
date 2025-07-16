@@ -49,20 +49,20 @@ export class InvitationsController {
         throw new Error('Invalid or expired invitation token.');
       }
       
-      // Serve a simple HTML form for password and full name
+      // Auto-accept for simplicity (skip the form step)
+      await this.invitationService.acceptInvitation(token);
+      
       return res.status(200).send(`
         <html>
           <head>
-            <title>Accept Invitation</title>
+            <title>Invitation Accepted</title>
             <meta charset="utf-8">
           </head>
           <body style="font-family:sans-serif;text-align:center;padding:2rem;">
-            <h1>Accept Invitation</h1>
+            <h1>✅ Invitation Accepted Successfully!</h1>
             <p>Email: ${invitation.email}</p>
-            <form method="POST" action="/api/invitations/accept-invitation">
-              <input type="hidden" name="token" value="${token}">
-              <button type="submit" style="padding:0.5rem 1.5rem;background:#4285f4;color:white;border:none;border-radius:4px;cursor:pointer;">Accept Invitation</button>
-            </form>
+            <p>Your invitation has been accepted. You can now register on the platform.</p>
+            <p><a href="http://10.9.21.110:8080" style="color:#4285f4;text-decoration:none;padding:10px 20px;background:#f0f0f0;border-radius:4px;">Go to Application</a></p>
           </body>
         </html>
       `);
@@ -71,7 +71,7 @@ export class InvitationsController {
         <html>
           <head><title>Invitation Error</title></head>
           <body style="font-family:sans-serif;text-align:center;padding:2rem;">
-            <h1>Error Accepting Invitation</h1>
+            <h1>❌ Invitation Failed</h1>
             <p>${error.message || 'Invalid or expired invitation token'}</p>
           </body>
         </html>
