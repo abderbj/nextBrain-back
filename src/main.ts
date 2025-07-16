@@ -54,7 +54,18 @@ async function bootstrap() {
   );
   app.useGlobalFilters(new AllExceptionsFilter());
   app.use(cookieParser());
-  app.use(helmet());
+  
+  // Configure Helmet with custom CSP to allow form submissions
+  app.use(helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        scriptSrc: ["'self'"],
+        formAction: ["'self'", "*"], // Allow form submissions to any origin
+      },
+    },
+  }));
 
   const config = new DocumentBuilder()
     .setTitle('NextBrain')

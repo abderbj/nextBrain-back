@@ -45,7 +45,7 @@ export class InvitationsController {
         <head><title>Accept Invitation</title></head>
         <body style="font-family:sans-serif;text-align:center;padding:2rem;">
           <h1>Accept Invitation</h1>
-          <form method="POST" action="/api/invitations/accept-invitation?token=${token}">
+          <form method="POST" action="./accept-invitation?token=${token}">
             <button type="submit" style="padding:0.5rem 1.5rem;">Accept Invitation</button>
           </form>
         </body>
