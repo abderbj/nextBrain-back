@@ -162,4 +162,11 @@ export class UsersController {
   deleteAccount(@Req() req: RequestWithUser) {
     return this.usersService.remove(req.user.id);
   }
+
+  @Get()
+  @ApiOperation({ summary: 'Get all users' })
+  @ApiResponse({ status: 200, description: 'List of all users' })
+  getAllUsers() {
+    return this.usersService.getAllUsers();
+  }
 }

@@ -295,6 +295,13 @@ export class UsersService {
     };
   }
 
+  async getAllUsers() {
+    return await this.prisma.user.findMany({
+      select: this.userSafeFields,
+      orderBy: { created_at: 'desc' },
+    });
+  }
+
   private get userSafeFields() {
     return {
       id: true,
