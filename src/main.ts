@@ -62,7 +62,9 @@ async function bootstrap() {
         defaultSrc: ["'self'"],
         styleSrc: ["'self'", "'unsafe-inline'"],
         scriptSrc: ["'self'"],
-        formAction: ["'self'", "*"], // Allow form submissions to any origin
+        formAction: ["'self'"], // Allow form submissions to same origin only
+        connectSrc: ["'self'"],
+        imgSrc: ["'self'", "data:"],
       },
     },
   }));

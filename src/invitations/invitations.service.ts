@@ -40,6 +40,17 @@ export class InvitationsService {
         });
     }
 
+    async validateToken(token: string): Promise<any> {
+        const invitation = await this.prisma.invitation.findUnique({ where: { token } });
+        if (!invitation) {
+            return null;
+        }
+        if (invitation.expiresAt && new Date() > new Date(invitation.expiresAt)) {
+            return null;
+        }
+        return invitation;
+    }
+
     async acceptInvitation(token: string): Promise<void> {
     const invitation = await this.prisma.invitation.findUnique({ where: { token } });
       if (!invitation) {
