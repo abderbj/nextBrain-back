@@ -1,9 +1,9 @@
 {
   "info": {
-    "name": "NextBrain Backend API",
-    "description": "Comprehensive API collection for NextBrain backend application\n\n## Test Flow:\n1. Send invitation to user email\n2. Check email for invitation link and token\n3. Accept invitation (GET to see form, POST to accept)\n4. Register with accepted invitation email\n5. Login with username/password\n6. Use Bearer token for authenticated endpoints\n\n## Working Test User:\n- Username: testuser\n- Email: gaithrouahi1730@gmail.com\n- Password: password123\n\n## Variables:\n- base_url: API base URL\n- access_token: JWT token from login\n- user_id: Current user ID\n- chat_id: Current chat ID\n- invitation_token: Token from invitation email",
+    "name": "NextBrain Backend API - Complete",
+    "description": "Complete API collection for NextBrain backend application with all endpoints\n\n## Test Flow:\n1. Send invitation to user email\n2. Check email for invitation link and token\n3. Accept invitation (GET to see form, POST to accept)\n4. Register with accepted invitation email\n5. Login with username/password\n6. Use Bearer token for authenticated endpoints\n\n## Working Test User:\n- Username: testuser\n- Email: gaithrouahi1730@gmail.com\n- Password: password123\n\n## Variables:\n- base_url: API base URL\n- access_token: JWT token from login\n- user_id: Current user ID\n- chat_id: Current chat ID\n- invitation_token: Token from invitation email",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "version": "2.0.0"
+    "version": "3.0.0"
   },
   "auth": {
     "type": "bearer",
@@ -48,6 +48,37 @@
     }
   ],
   "item": [
+    {
+      "name": "Root & Health",
+      "item": [
+        {
+          "name": "Root Hello",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/",
+              "host": ["{{base_url}}"],
+              "path": [""]
+            },
+            "description": "Basic hello endpoint"
+          }
+        },
+        {
+          "name": "App Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health",
+              "host": ["{{base_url}}"],
+              "path": ["health"]
+            },
+            "description": "General application health check"
+          }
+        }
+      ]
+    },
     {
       "name": "Authentication",
       "item": [
@@ -152,6 +183,44 @@
           }
         },
         {
+          "name": "Get Current User (Me)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/me",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "me"]
+            },
+            "description": "Get current authenticated user information"
+          }
+        },
+        {
+          "name": "Verify Email",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/auth/verify-email?token=YOUR_VERIFICATION_TOKEN",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "verify-email"],
+              "query": [
+                {
+                  "key": "token",
+                  "value": "YOUR_VERIFICATION_TOKEN",
+                  "description": "Email verification token"
+                }
+              ]
+            },
+            "description": "Verify email address using token from email link"
+          }
+        },
+        {
           "name": "Resend Verification Email",
           "request": {
             "method": "POST",
@@ -232,13 +301,13 @@
               "host": ["{{base_url}}"],
               "path": ["auth", "logout"]
             },
-            "description": "Logout user"
+            "description": "Logout user and clear tokens"
           }
         }
       ]
     },
     {
-      "name": "Users",
+      "name": "Users Management",
       "item": [
         {
           "name": "Get User Profile",
@@ -255,39 +324,13 @@
               "host": ["{{base_url}}"],
               "path": ["users", "profile"]
             },
-            "description": "Get current user's profile information"
+            "description": "Get current user profile information"
           }
         },
         {
-          "name": "Update User Profile",
+          "name": "Update Profile",
           "request": {
             "method": "PATCH",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{access_token}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"fullName\": \"Updated Full Name\",\n  \"username\": \"updatedusername\"\n}"
-            },
-            "url": {
-              "raw": "{{base_url}}/users/profile",
-              "host": ["{{base_url}}"],
-              "path": ["users", "profile"]
-            },
-            "description": "Update user profile information"
-          }
-        },
-        {
-          "name": "Upload Profile Picture",
-          "request": {
-            "method": "POST",
             "header": [
               {
                 "key": "Authorization",
@@ -298,18 +341,38 @@
               "mode": "formdata",
               "formdata": [
                 {
-                  "key": "file",
+                  "key": "username",
+                  "value": "newusername",
+                  "type": "text"
+                },
+                {
+                  "key": "fullName",
+                  "value": "New Full Name",
+                  "type": "text"
+                },
+                {
+                  "key": "bio",
+                  "value": "Updated bio",
+                  "type": "text"
+                },
+                {
+                  "key": "location",
+                  "value": "New Location",
+                  "type": "text"
+                },
+                {
+                  "key": "profileImage",
                   "type": "file",
                   "src": []
                 }
               ]
             },
             "url": {
-              "raw": "{{base_url}}/users/upload-profile-picture",
+              "raw": "{{base_url}}/users/profile",
               "host": ["{{base_url}}"],
-              "path": ["users", "upload-profile-picture"]
+              "path": ["users", "profile"]
             },
-            "description": "Upload user profile picture"
+            "description": "Update user profile with optional file upload"
           }
         },
         {
@@ -318,24 +381,68 @@
             "method": "PATCH",
             "header": [
               {
-                "key": "Authorization",
-                "value": "Bearer {{access_token}}"
-              },
-              {
                 "key": "Content-Type",
                 "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
               }
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"currentPassword\": \"currentpassword123\",\n  \"newPassword\": \"newpassword123\"\n}"
+              "raw": "{\n  \"currentPassword\": \"oldpassword123\",\n  \"newPassword\": \"newpassword123\"\n}"
             },
             "url": {
-              "raw": "{{base_url}}/users/update-password",
+              "raw": "{{base_url}}/users/password",
               "host": ["{{base_url}}"],
-              "path": ["users", "update-password"]
+              "path": ["users", "password"]
             },
             "description": "Update user password"
+          }
+        },
+        {
+          "name": "Update Account Type",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accountType\": \"PREMIUM\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/users/account",
+              "host": ["{{base_url}}"],
+              "path": ["users", "account"]
+            },
+            "description": "Update user account type"
+          }
+        },
+        {
+          "name": "Get All Users",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/users",
+              "host": ["{{base_url}}"],
+              "path": ["users"]
+            },
+            "description": "Get list of all users (admin function)"
           }
         },
         {
@@ -349,18 +456,31 @@
               }
             ],
             "url": {
-              "raw": "{{base_url}}/users/delete-account",
+              "raw": "{{base_url}}/users/account",
               "host": ["{{base_url}}"],
-              "path": ["users", "delete-account"]
+              "path": ["users", "account"]
             },
-            "description": "Delete user account"
+            "description": "Delete user account permanently"
           }
         }
       ]
     },
     {
-      "name": "Gemini Chat",
+      "name": "Llama AI Chat",
       "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/llama/health",
+              "host": ["{{base_url}}"],
+              "path": ["llama", "health"]
+            },
+            "description": "Check Ollama connection and model availability (no auth required)"
+          }
+        },
         {
           "name": "Create Chat",
           "event": [
@@ -368,8 +488,7 @@
               "listen": "test",
               "script": {
                 "exec": [
-                  "// Extract chat ID from response",
-                  "if (pm.response.code === 200) {",
+                  "if (pm.response.code === 201 || pm.response.code === 200) {",
                   "    const responseJson = pm.response.json();",
                   "    if (responseJson.chatId) {",
                   "        pm.collectionVariables.set('chat_id', responseJson.chatId);",
@@ -394,7 +513,222 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"title\": \"My Gemini Chat\"\n}"
+              "raw": "{\n  \"title\": \"My New Llama Chat\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/llama/chat/create",
+              "host": ["{{base_url}}"],
+              "path": ["llama", "chat", "create"]
+            },
+            "description": "Create a new Llama chat session"
+          }
+        },
+        {
+          "name": "Send Message (Streaming)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"user\",\n  \"content\": \"Hello! Tell me a short story about AI.\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/llama/chat/{{chat_id}}/message/stream",
+              "host": ["{{base_url}}"],
+              "path": ["llama", "chat", "{{chat_id}}", "message", "stream"]
+            },
+            "description": "Send message with streaming response (recommended for better performance)"
+          }
+        },
+        {
+          "name": "Send Message (Non-Streaming)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"user\",\n  \"content\": \"Hello! Can you tell me a short joke?\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/llama/chat/{{chat_id}}/message",
+              "host": ["{{base_url}}"],
+              "path": ["llama", "chat", "{{chat_id}}", "message"]
+            },
+            "description": "Send message with complete response (60s timeout)"
+          }
+        },
+        {
+          "name": "Get Chat History",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/llama/chat/{{chat_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["llama", "chat", "{{chat_id}}"]
+            },
+            "description": "Get chat history and all messages"
+          }
+        },
+        {
+          "name": "List All Chats",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/llama/chat",
+              "host": ["{{base_url}}"],
+              "path": ["llama", "chat"]
+            },
+            "description": "Get all Llama chats for the user"
+          }
+        },
+        {
+          "name": "Update Chat Title",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Updated Chat Title\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/llama/chat/{{chat_id}}/title",
+              "host": ["{{base_url}}"],
+              "path": ["llama", "chat", "{{chat_id}}", "title"]
+            },
+            "description": "Update the title of a chat"
+          }
+        },
+        {
+          "name": "Regenerate Response",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/llama/chat/{{chat_id}}/regenerate",
+              "host": ["{{base_url}}"],
+              "path": ["llama", "chat", "{{chat_id}}", "regenerate"]
+            },
+            "description": "Regenerate the last assistant response"
+          }
+        },
+        {
+          "name": "Delete Chat",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/llama/chat/{{chat_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["llama", "chat", "{{chat_id}}"]
+            },
+            "description": "Delete a specific chat"
+          }
+        },
+        {
+          "name": "Delete All Chats",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/llama/chat/all",
+              "host": ["{{base_url}}"],
+              "path": ["llama", "chat", "all"]
+            },
+            "description": "Delete all Llama chats"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Gemini AI Chat",
+      "item": [
+        {
+          "name": "Create Chat",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201 || pm.response.code === 200) {",
+                  "    const responseJson = pm.response.json();",
+                  "    if (responseJson.chatId) {",
+                  "        pm.collectionVariables.set('chat_id', responseJson.chatId);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"My New Gemini Chat\"\n}"
             },
             "url": {
               "raw": "{{base_url}}/gemini/chat/create",
@@ -420,66 +754,18 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Hello! Can you help me with a programming question?\"\n    }\n  ]\n}"
+              "raw": "{\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Hello! Can you help me with a coding question?\"\n    }\n  ]\n}"
             },
             "url": {
               "raw": "{{base_url}}/gemini/chat/{{chat_id}}/message",
               "host": ["{{base_url}}"],
               "path": ["gemini", "chat", "{{chat_id}}", "message"]
             },
-            "description": "Send a message to Gemini chat"
+            "description": "Send message to Gemini (expects messages array)"
           }
         },
         {
-          "name": "Regenerate Response",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{access_token}}"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/gemini/chat/{{chat_id}}/regenerate",
-              "host": ["{{base_url}}"],
-              "path": ["gemini", "chat", "{{chat_id}}", "regenerate"]
-            },
-            "description": "Regenerate the last response in Gemini chat"
-          }
-        },
-        {
-          "name": "Update Chat Title",
-          "request": {
-            "method": "PATCH",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{access_token}}"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"title\": \"Updated Chat Title\"\n}"
-            },
-            "url": {
-              "raw": "{{base_url}}/gemini/chat/{{chat_id}}/title",
-              "host": ["{{base_url}}"],
-              "path": ["gemini", "chat", "{{chat_id}}", "title"]
-            },
-            "description": "Update chat title"
-          }
-        },
-        {
-          "name": "Get Chat",
+          "name": "Get Chat History",
           "request": {
             "method": "GET",
             "header": [
@@ -493,7 +779,7 @@
               "host": ["{{base_url}}"],
               "path": ["gemini", "chat", "{{chat_id}}"]
             },
-            "description": "Get specific chat details"
+            "description": "Get Gemini chat history and all messages"
           }
         },
         {
@@ -511,91 +797,7 @@
               "host": ["{{base_url}}"],
               "path": ["gemini", "chat"]
             },
-            "description": "List all Gemini chats"
-          }
-        }
-      ]
-    },
-    {
-      "name": "Llama Chat",
-      "item": [
-        {
-          "name": "Create Chat",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "// Extract chat ID from response",
-                  "if (pm.response.code === 201) {",
-                  "    const responseJson = pm.response.json();",
-                  "    if (responseJson.chatId) {",
-                  "        pm.collectionVariables.set('chat_id', responseJson.chatId);",
-                  "    }",
-                  "}"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"title\": \"My Llama Chat\"\n}"
-            },
-            "url": {
-              "raw": "{{base_url}}/llama/chat/create",
-              "host": ["{{base_url}}"],
-              "path": ["llama", "chat", "create"]
-            },
-            "description": "Create a new Llama chat session"
-          }
-        },
-        {
-          "name": "Send Message",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"role\": \"user\",\n  \"content\": \"Hello! Can you help me with a coding problem?\"\n}"
-            },
-            "url": {
-              "raw": "{{base_url}}/llama/chat/{{chat_id}}/message",
-              "host": ["{{base_url}}"],
-              "path": ["llama", "chat", "{{chat_id}}", "message"]
-            },
-            "description": "Send a message to Llama chat"
-          }
-        },
-        {
-          "name": "Regenerate Response",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/llama/chat/{{chat_id}}/regenerate",
-              "host": ["{{base_url}}"],
-              "path": ["llama", "chat", "{{chat_id}}", "regenerate"]
-            },
-            "description": "Regenerate the last response in Llama chat"
+            "description": "Get all Gemini chats for the user"
           }
         },
         {
@@ -606,42 +808,76 @@
               {
                 "key": "Content-Type",
                 "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
               }
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"title\": \"Updated Llama Chat Title\"\n}"
+              "raw": "{\n  \"title\": \"Updated Gemini Chat Title\"\n}"
             },
             "url": {
-              "raw": "{{base_url}}/llama/chat/{{chat_id}}/title",
+              "raw": "{{base_url}}/gemini/chat/{{chat_id}}/title",
               "host": ["{{base_url}}"],
-              "path": ["llama", "chat", "{{chat_id}}", "title"]
+              "path": ["gemini", "chat", "{{chat_id}}", "title"]
             },
-            "description": "Update Llama chat title"
+            "description": "Update the title of a Gemini chat"
           }
         },
         {
-          "name": "Get Chat",
+          "name": "Regenerate Response",
           "request": {
-            "method": "GET",
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
             "url": {
-              "raw": "{{base_url}}/llama/chat/{{chat_id}}",
+              "raw": "{{base_url}}/gemini/chat/{{chat_id}}/regenerate",
               "host": ["{{base_url}}"],
-              "path": ["llama", "chat", "{{chat_id}}"]
+              "path": ["gemini", "chat", "{{chat_id}}", "regenerate"]
             },
-            "description": "Get specific Llama chat details"
+            "description": "Regenerate the last Gemini response"
           }
         },
         {
-          "name": "List All Chats",
+          "name": "Delete Chat",
           "request": {
-            "method": "GET",
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
             "url": {
-              "raw": "{{base_url}}/llama/chat",
+              "raw": "{{base_url}}/gemini/chat/{{chat_id}}",
               "host": ["{{base_url}}"],
-              "path": ["llama", "chat"]
+              "path": ["gemini", "chat", "{{chat_id}}"]
             },
-            "description": "List all Llama chats"
+            "description": "Delete a specific Gemini chat"
+          }
+        },
+        {
+          "name": "Delete All Chats",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/gemini/chat/all",
+              "host": ["{{base_url}}"],
+              "path": ["gemini", "chat", "all"]
+            },
+            "description": "Delete all Gemini chats"
           }
         }
       ]
@@ -651,28 +887,16 @@
       "item": [
         {
           "name": "Send Invitation",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "// Store invitation token if needed for testing",
-                  "if (pm.response.code === 201 || pm.response.code === 200) {",
-                  "    console.log('Invitation sent successfully');",
-                  "    // Note: In real usage, the token would be sent via email",
-                  "    // For testing, you would need to check the email or database",
-                  "}"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
           "request": {
             "method": "POST",
             "header": [
               {
                 "key": "Content-Type",
                 "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
               }
             ],
             "body": {
@@ -684,13 +908,58 @@
               "host": ["{{base_url}}"],
               "path": ["invitations", "invite"]
             },
-            "description": "Send an invitation to a user"
+            "description": "Send invitation to new user (admin only)"
           }
         },
         {
-          "name": "Accept Invitation (GET Form)",
+          "name": "Resend Invitation",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/invitations/resend-invitation",
+              "host": ["{{base_url}}"],
+              "path": ["invitations", "resend-invitation"]
+            },
+            "description": "Resend invitation email (admin only)"
+          }
+        },
+        {
+          "name": "Get All Invitations",
           "request": {
             "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/invitations",
+              "host": ["{{base_url}}"],
+              "path": ["invitations"]
+            },
+            "description": "Get all pending invitations (admin only)"
+          }
+        },
+        {
+          "name": "Accept Invitation (GET)",
+          "request": {
+            "method": "GET",
+            "header": [],
             "url": {
               "raw": "{{base_url}}/invitations/accept-invitation?token={{invitation_token}}",
               "host": ["{{base_url}}"],
@@ -717,70 +986,14 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"password\": \"newuserpassword123\",\n  \"fullName\": \"New User Full Name\"\n}"
+              "raw": "{\n  \"token\": \"{{invitation_token}}\"\n}"
             },
             "url": {
-              "raw": "{{base_url}}/invitations/accept-invitation?token={{invitation_token}}",
+              "raw": "{{base_url}}/invitations/accept-invitation",
               "host": ["{{base_url}}"],
-              "path": ["invitations", "accept-invitation"],
-              "query": [
-                {
-                  "key": "token",
-                  "value": "{{invitation_token}}"
-                }
-              ]
+              "path": ["invitations", "accept-invitation"]
             },
-            "description": "Accept invitation and create account"
-          }
-        }
-      ]
-    },
-    {
-      "name": "File Upload",
-      "item": [
-        {
-          "name": "Upload File",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{access_token}}"
-              }
-            ],
-            "body": {
-              "mode": "formdata",
-              "formdata": [
-                {
-                  "key": "file",
-                  "type": "file",
-                  "src": []
-                }
-              ]
-            },
-            "url": {
-              "raw": "{{base_url}}/file-upload",
-              "host": ["{{base_url}}"],
-              "path": ["file-upload"]
-            },
-            "description": "Upload a file"
-          }
-        }
-      ]
-    },
-    {
-      "name": "Health Check",
-      "item": [
-        {
-          "name": "Health Check",
-          "request": {
-            "method": "GET",
-            "url": {
-              "raw": "{{base_url}}/",
-              "host": ["{{base_url}}"],
-              "path": [""]
-            },
-            "description": "Basic health check endpoint"
+            "description": "Accept invitation and enable registration"
           }
         }
       ]
