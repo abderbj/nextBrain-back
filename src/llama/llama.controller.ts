@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Param, Patch, Get, Delete, HttpException, HttpStatus, Req } from '@nestjs/common';
+import { Controller, Post, Body, Param, Patch, Get, Delete, HttpException, HttpStatus, Req, Res } from '@nestjs/common';
 import { ChatCompetionMessageDto } from './dto/create-chat-completion.request';
 import { LlamaService, LlamaChatMetadata } from './llama.service';
 import { Auth } from '../common/decorators/auth.decorator';
@@ -47,6 +47,34 @@ export class LlamaController {
             return await this.llamaService.addMessageAndGetCompletion(parseInt(chatId), message);
         } catch (e) {
             throw new HttpException(e.message, HttpStatus.NOT_FOUND);
+        }
+    }
+
+    @Auth()
+    @Post('chat/:chatId/message/stream')
+    async sendMessageStream(
+        @Param('chatId') chatId: string,
+        @Body() message: ChatCompetionMessageDto,
+        @Req() req: any,
+        @Res() res: any
+    ) {
+        if (!message || typeof message.role !== 'string' || typeof message.content !== 'string' || !message.content.trim()) {
+            throw new HttpException('Invalid message: role and content are required.', HttpStatus.BAD_REQUEST);
+        }
+
+        try {
+            // Set headers for Server-Sent Events
+            res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+            res.setHeader('Cache-Control', 'no-cache');
+            res.setHeader('Connection', 'keep-alive');
+            res.setHeader('Access-Control-Allow-Origin', '*');
+            res.setHeader('Access-Control-Allow-Headers', 'Cache-Control');
+
+            await this.llamaService.addMessageAndGetCompletionStream(parseInt(chatId), message, res);
+        } catch (e) {
+            if (!res.headersSent) {
+                throw new HttpException(e.message, HttpStatus.INTERNAL_SERVER_ERROR);
+            }
         }
     }
 

@@ -133,7 +133,7 @@ export class LlamaService {
                 messages: llamaMessages,
                 stream: false,
             }, {
-                timeout: 30000, // 30 second timeout
+                timeout: 60000, // Increased to 60 seconds for non-streaming
                 headers: {
                     'Content-Type': 'application/json',
                 }
@@ -166,6 +166,188 @@ export class LlamaService {
             }
             
             throw new Error(`Failed to get response from Llama: ${error.message}`);
+        }
+    }
+
+    async addMessageAndGetCompletionStream(
+        chatId: number,
+        message: ChatCompetionMessageDto,
+        res: any
+    ): Promise<void> {
+        const conversation = await this.prisma.chatbotConversation.findFirst({
+            where: { 
+                id: chatId,
+                model_type: ModelType.LLAMA
+            },
+            include: {
+                messages: {
+                    orderBy: { sent_at: 'asc' },
+                },
+            },
+        });
+        
+        if (!conversation) throw new Error('Llama chat not found');
+
+        // Set title from first user message if it's still "New Chat"
+        if (
+            conversation.messages.length === 0 &&
+            message.role === 'user' &&
+            conversation.title === 'New Chat'
+        ) {
+            if (typeof message.content === 'string') {
+                await this.prisma.chatbotConversation.update({
+                    where: { id: chatId },
+                    data: { title: message.content.slice(0, 100) },
+                });
+            }
+        }
+
+        // Save user message to database
+        await this.prisma.chatbotMessage.create({
+            data: {
+                conversation_id: chatId,
+                sender_type: 'USER',
+                message: message.content,
+            },
+        });
+
+        // Get all messages for context and prepare for Llama
+        const allMessages = await this.prisma.chatbotMessage.findMany({
+            where: { conversation_id: chatId },
+            orderBy: { sent_at: 'asc' },
+        });
+
+        // Add system message if this is the first message and convert to Llama format
+        const llamaMessages: Array<{ role: string; content: string }> = [];
+        if (allMessages.length === 1) {
+            llamaMessages.push({
+                role: 'system',
+                content: 'You are a helpful assistant. Answer clearly and concisely.',
+            });
+        }
+
+        // Convert messages to Llama format
+        llamaMessages.push(...allMessages.map(msg => ({
+            role: msg.sender_type === 'USER' ? 'user' : 'assistant',
+            content: msg.message
+        })));
+
+        let accumulatedContent = '';
+
+        try {
+            console.log('Sending streaming request to Llama API:', this.baseUrl);
+            
+            // Send streaming request to Llama
+            const response = await axios.post(this.baseUrl, {
+                model: 'steamdj/llama3.1-cpu-only:latest',
+                messages: llamaMessages,
+                stream: true,
+            }, {
+                timeout: 0, // No timeout for streaming
+                responseType: 'stream',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            });
+            
+            // Process the streaming response
+            response.data.on('data', (chunk: Buffer) => {
+                const lines = chunk.toString().split('\n');
+                
+                for (const line of lines) {
+                    if (line.trim()) {
+                        try {
+                            const data = JSON.parse(line);
+                            if (data.message && data.message.content) {
+                                const content = data.message.content;
+                                accumulatedContent += content;
+                                
+                                // Stream the content to the client
+                                res.write(content);
+                            }
+                            
+                            // Check if the response is done
+                            if (data.done) {
+                                console.log('Streaming complete');
+                                res.end();
+                                
+                                // Save the complete AI response to database
+                                if (accumulatedContent) {
+                                    this.prisma.chatbotMessage.create({
+                                        data: {
+                                            conversation_id: chatId,
+                                            sender_type: 'BOT',
+                                            message: accumulatedContent,
+                                        },
+                                    }).catch(error => {
+                                        console.error('Failed to save message to database:', error);
+                                    });
+                                }
+                                return;
+                            }
+                        } catch (parseError) {
+                            console.warn('Failed to parse streaming chunk:', line);
+                        }
+                    }
+                }
+            });
+            
+            response.data.on('end', () => {
+                console.log('Stream ended');
+                if (!res.headersSent) {
+                    res.end();
+                }
+                
+                // Save the complete AI response to database if not already saved
+                if (accumulatedContent) {
+                    this.prisma.chatbotMessage.findFirst({
+                        where: {
+                            conversation_id: chatId,
+                            sender_type: 'BOT',
+                            message: accumulatedContent,
+                        },
+                    }).then(existingMessage => {
+                        if (!existingMessage) {
+                            return this.prisma.chatbotMessage.create({
+                                data: {
+                                    conversation_id: chatId,
+                                    sender_type: 'BOT',
+                                    message: accumulatedContent,
+                                },
+                            });
+                        }
+                    }).catch(error => {
+                        console.error('Failed to save message to database:', error);
+                    });
+                }
+            });
+            
+            response.data.on('error', (error: any) => {
+                console.error('Stream error:', error);
+                if (!res.headersSent) {
+                    res.status(500).json({ error: 'Streaming failed' });
+                }
+            });
+            
+        } catch (error) {
+            console.error('Llama API streaming error:');
+            console.error('- URL:', this.baseUrl);
+            console.error('- Error message:', error.message);
+            console.error('- Error code:', error.code);
+            console.error('- Response status:', error.response?.status);
+            console.error('- Response data:', error.response?.data);
+            
+            if (!res.headersSent) {
+                if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+                    res.status(500).json({ 
+                        error: `Cannot connect to Ollama at ${this.baseUrl}. Make sure Ollama is running and accessible.` 
+                    });
+                } else {
+                    res.status(500).json({ 
+                        error: `Failed to get response from Llama: ${error.message}` 
+                    });
+                }
+            }
         }
     }
 
@@ -219,11 +401,11 @@ export class LlamaService {
             console.log('Regenerating response - sending request to Llama API:', this.baseUrl);
             // Re-send to Llama
             const response = await axios.post(this.baseUrl, {
-                model: 'llama3.2:latest',
+                model: 'steamdj/llama3.1-cpu-only:latest',
                 messages: llamaMessages,
                 stream: false,
             }, {
-                timeout: 30000, // 30 second timeout
+                timeout: 60000, // Increased to 60 seconds
                 headers: {
                     'Content-Type': 'application/json',
                 }
