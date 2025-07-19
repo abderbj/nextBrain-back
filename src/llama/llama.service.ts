@@ -557,14 +557,14 @@ export class LlamaService {
             
             console.log('Available models:', modelsResponse.data);
             
-            // Check if llama3.2 is available
+            // Check if steamdj/llama3.1-cpu-only is available
             const models = modelsResponse.data.models || [];
-            const llamaModel = models.find(model => model.name.includes('llama3.2'));
+            const llamaModel = models.find(model => model.name.includes('steamdj/llama3.1-cpu-only'));
             
             if (!llamaModel) {
                 return {
                     status: 'warning',
-                    message: 'Connected to Ollama but llama3.2 model not found. Available models: ' + 
+                    message: 'Connected to Ollama but steamdj/llama3.1-cpu-only model not found. Available models: ' + 
                             models.map(m => m.name).join(', '),
                     url: this.baseUrl
                 };
@@ -572,7 +572,7 @@ export class LlamaService {
             
             return {
                 status: 'success',
-                message: 'Successfully connected to Ollama and llama3.2 model is available',
+                message: 'Successfully connected to Ollama and steamdj/llama3.1-cpu-only model is available',
                 url: this.baseUrl
             };
             
