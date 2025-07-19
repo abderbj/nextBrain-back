@@ -122,7 +122,7 @@ export class LlamaService {
         try {
             console.log('Sending request to Llama API:', this.baseUrl);
             console.log('Request payload:', {
-                model: 'llama3.2:latest',
+                model: 'steamdj/llama3.1-cpu-only:latest',
                 messages: llamaMessages,
                 stream: false,
             });
