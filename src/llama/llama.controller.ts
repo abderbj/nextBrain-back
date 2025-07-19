@@ -67,8 +67,9 @@ export class LlamaController {
             res.setHeader('Content-Type', 'text/plain; charset=utf-8');
             res.setHeader('Cache-Control', 'no-cache');
             res.setHeader('Connection', 'keep-alive');
-            res.setHeader('Access-Control-Allow-Origin', '*');
-            res.setHeader('Access-Control-Allow-Headers', 'Cache-Control');
+            // Remove manual CORS headers - let NestJS handle CORS properly
+            // res.setHeader('Access-Control-Allow-Origin', '*');
+            // res.setHeader('Access-Control-Allow-Headers', 'Cache-Control');
 
             await this.llamaService.addMessageAndGetCompletionStream(parseInt(chatId), message, res);
         } catch (e) {
