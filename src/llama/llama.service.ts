@@ -129,7 +129,7 @@ export class LlamaService {
             
             // Send all messages to Llama
             const response = await axios.post(this.baseUrl, {
-                model: 'llama3.2:latest',
+                model: 'steamdj/llama3.1-cpu-only:latest',
                 messages: llamaMessages,
                 stream: false,
             }, {
