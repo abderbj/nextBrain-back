@@ -5,6 +5,8 @@ import axios from 'axios';
 import { PrismaService } from '../prisma/prisma.service';
 import { SenderType, ModelType } from '@prisma/client';
 import { log } from 'node:console';
+import { existsSync, readFileSync } from 'fs';
+import { join } from 'path';
 
 export interface LlamaChatMetadata {
     id: number;
@@ -22,13 +24,70 @@ export interface LlamaChatMetadata {
 @Injectable()
 export class LlamaService {
     private readonly baseUrl: string;
+    private model: string;
 
     constructor(
         private readonly prisma: PrismaService,
         private readonly configService: ConfigService,
     ) {
         this.baseUrl = this.configService.get<string>('LLAMA_API_URL') || 'http://10.9.21.110:11434/api/chat';
-        console.log('Llama service initialized with URL:', this.baseUrl);
+        // Determine model: prefer explicit env override, then detect from docker-compose files, then default
+        this.model = this.configService.get<string>('LLAMA_MODEL') || this.detectModelFromCompose() || 'llama3.2';
+        console.log('Llama service initialized with URL:', this.baseUrl, 'model:', this.model);
+    }
+
+    private detectModelFromCompose(): string | null {
+        try {
+            const cwd = process.cwd();
+            const candidates = [
+                join(cwd, 'docker-compose.dev.yml'),
+                join(cwd, 'docker-compose.yml')
+            ];
+
+            for (const filePath of candidates) {
+                if (!existsSync(filePath)) continue;
+                const content = readFileSync(filePath, 'utf8');
+
+                // Look for known model strings
+                if (/steamdj\/llama3\.1(-cpu-only)?/i.test(content) || /steamdj\/llama3\.1-cpu-only/i.test(content)) {
+                    return 'steamdj/llama3.1-cpu-only:latest';
+                }
+
+                if (/llama3\.2/i.test(content)) {
+                    return 'llama3.2';
+                }
+            }
+        } catch (e) {
+            // ignore and fallback
+        }
+        return null;
+    }
+
+    private async ensureModelAvailable(): Promise<boolean> {
+        // Returns true if a fallback to llama3.2 was performed
+        try {
+            const modelsUrl = this.baseUrl.replace('/api/chat', '/api/tags');
+            const modelsResponse = await axios.get(modelsUrl, { timeout: 5000 });
+            const models = modelsResponse.data.models || modelsResponse.data || [];
+
+            const names: string[] = models.map((m: any) => (m && m.name) ? m.name : String(m));
+
+            // If current model present, nothing to do
+            if (names.find(n => n.includes(this.model))) return false;
+
+            // Prefer llama3.2 if available
+            const found32 = names.find(n => /llama3\.2/i.test(n));
+            if (found32) {
+                console.warn(`Model ${this.model} not found on Ollama; falling back to ${found32}`);
+                this.model = found32.includes(':') ? found32 : 'llama3.2';
+                return true;
+            }
+
+            return false;
+        } catch (e) {
+            // If we can't fetch tags, don't change model
+            return false;
+        }
     }
 
     async createChat(userId: number, title = 'New Chat'): Promise<number> {
@@ -119,24 +178,37 @@ export class LlamaService {
             content: msg.message
         })));
 
+        // Prepare request headers
+        const headers: Record<string, string> = {
+            'Content-Type': 'application/json',
+        };
+
         try {
             console.log('Sending request to Llama API:', this.baseUrl);
             console.log('Request payload:', {
-                model: 'steamdj/llama3.1-cpu-only:latest',
+                model: this.model,
                 messages: llamaMessages,
                 stream: false,
             });
             
+            // Prepare headers. Some host setups (container -> host.docker.internal)
+            // require preserving the host header expected by Ollama. If the
+            // configured baseUrl includes host.docker.internal we add a Host
+            // header pointing to 127.0.0.1:11434 which resolves to the host.
+            const headers: Record<string, string> = {
+                'Content-Type': 'application/json',
+            };
             // Send all messages to Llama
+            // Ensure model availability and possibly fallback before request
+            await this.ensureModelAvailable();
+
             const response = await axios.post(this.baseUrl, {
-                model: 'steamdj/llama3.1-cpu-only:latest',
+                model: this.model,
                 messages: llamaMessages,
                 stream: false,
             }, {
                 timeout: 60000, // Increased to 60 seconds for non-streaming
-                headers: {
-                    'Content-Type': 'application/json',
-                }
+                headers
             });
             
             const aiMessage = response.data.message;
@@ -153,7 +225,7 @@ export class LlamaService {
                 return { response: aiMessage.content };
             }
             return { response: null };
-        } catch (error) {
+    } catch (error) {
             console.error('Llama API error details (addMessageAndGetCompletion):');
             console.error('- URL:', this.baseUrl);
             console.error('- Error message:', error.message);
@@ -161,6 +233,37 @@ export class LlamaService {
             console.error('- Response status:', error.response?.status);
             console.error('- Response data:', error.response?.data);
             
+            // If Ollama indicates the model is not found, try to fallback to llama3.2 once
+            const respData: any = error.response?.data;
+            if (error.response?.status === 404 && respData && typeof respData.error === 'string' && respData.error.includes('model')) {
+                const didFallback = await this.ensureModelAvailable();
+                if (didFallback) {
+                    // Retry the request once with the fallback model
+                    try {
+                        const retryResp = await axios.post(this.baseUrl, {
+                            model: this.model,
+                            messages: llamaMessages,
+                            stream: false,
+                        }, { timeout: 60000, headers });
+
+                        const aiMessageRetry = retryResp.data.message;
+                        if (aiMessageRetry && aiMessageRetry.content) {
+                            await this.prisma.chatbotMessage.create({
+                                data: {
+                                    conversation_id: chatId,
+                                    sender_type: 'BOT',
+                                    message: aiMessageRetry.content,
+                                },
+                            });
+                            return { response: aiMessageRetry.content };
+                        }
+                        return { response: null };
+                    } catch (retryErr) {
+                        console.error('Retry after fallback failed:', retryErr.message);
+                    }
+                }
+            }
+
             if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
                 throw new Error(`Cannot connect to Ollama at ${this.baseUrl}. Make sure Ollama is running and accessible.`);
             }
@@ -234,20 +337,27 @@ export class LlamaService {
 
         let accumulatedContent = '';
 
+        // Prepare headers and response holder so retry logic can reuse them
+        const headers: Record<string, string> = {
+            'Content-Type': 'application/json',
+        };
+        let response: any;
+
         try {
             console.log('Sending streaming request to Llama API:', this.baseUrl);
-            
+
+            // Ensure model availability and possibly fallback before request
+            await this.ensureModelAvailable();
+
             // Send streaming request to Llama
-            const response = await axios.post(this.baseUrl, {
-                model: 'steamdj/llama3.1-cpu-only:latest',
+            response = await axios.post(this.baseUrl, {
+                model: this.model,
                 messages: llamaMessages,
                 stream: true,
             }, {
                 timeout: 0, // No timeout for streaming
                 responseType: 'stream',
-                headers: {
-                    'Content-Type': 'application/json',
-                }
+                headers
             });
             
             // Process the streaming response
@@ -336,7 +446,66 @@ export class LlamaService {
             console.error('- Error code:', error.code);
             console.error('- Response status:', error.response?.status);
             console.error('- Response data:', error.response?.data);
-            
+            // If Ollama indicates the model is not found, try to fallback to llama3.2 once and retry
+            const respData: any = error.response?.data;
+            if (error.response?.status === 404 && respData && typeof respData.error === 'string' && respData.error.includes('model')) {
+                const didFallback = await this.ensureModelAvailable();
+                if (didFallback) {
+                    try {
+                        response = await axios.post(this.baseUrl, {
+                            model: this.model,
+                            messages: llamaMessages,
+                            stream: true,
+                        }, { timeout: 0, responseType: 'stream', headers });
+
+                        // attach new stream handlers to the new response
+                        response.data.on('data', (chunk: Buffer) => {
+                            const lines = chunk.toString().split('\n');
+                            for (const line of lines) {
+                                if (line.trim()) {
+                                    try {
+                                        const data = JSON.parse(line);
+                                        if (data.message && data.message.content) {
+                                            const content = data.message.content;
+                                            accumulatedContent += content;
+                                            res.write(content);
+                                        }
+                                        if (data.done) {
+                                            res.end();
+                                            if (accumulatedContent) {
+                                                this.prisma.chatbotMessage.create({
+                                                    data: {
+                                                        conversation_id: chatId,
+                                                        sender_type: 'BOT',
+                                                        message: accumulatedContent,
+                                                    },
+                                                }).catch(e=>console.error('Failed to save message after fallback:', e));
+                                            }
+                                            return;
+                                        }
+                                    } catch (parseError) {
+                                        console.warn('Failed to parse streaming chunk after fallback:', line);
+                                    }
+                                }
+                            }
+                        });
+
+                        response.data.on('end', () => {
+                            if (!res.headersSent) res.end();
+                        });
+
+                        response.data.on('error', (err: any) => {
+                            console.error('Stream error after fallback:', err);
+                            if (!res.headersSent) res.status(500).json({ error: 'Streaming failed after fallback' });
+                        });
+
+                        return;
+                    } catch (retryErr) {
+                        console.error('Streaming retry after fallback failed:', retryErr.message);
+                    }
+                }
+            }
+
             if (!res.headersSent) {
                 if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
                     res.status(500).json({ 
@@ -400,15 +569,16 @@ export class LlamaService {
         try {
             console.log('Regenerating response - sending request to Llama API:', this.baseUrl);
             // Re-send to Llama
+            const headers: Record<string, string> = {
+                'Content-Type': 'application/json',
+            };
             const response = await axios.post(this.baseUrl, {
                 model: 'steamdj/llama3.1-cpu-only:latest',
                 messages: llamaMessages,
                 stream: false,
             }, {
                 timeout: 60000, // Increased to 60 seconds
-                headers: {
-                    'Content-Type': 'application/json',
-                }
+                headers
             });
 
             const aiMessage = response.data.message;

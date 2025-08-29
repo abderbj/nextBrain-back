@@ -24,9 +24,19 @@ export class KnowledgeService {
   return db.category.findMany();
   }
 
+  async listFiles() {
+    const db = this.prisma as any;
+    return db.file.findMany({ orderBy: { id: 'desc' } });
+  }
+
   async deleteCategory(id: number) {
   const db = this.prisma as any;
   return db.category.delete({ where: { id } });
+  }
+
+  async updateCategory(id: number, name: string) {
+    const db = this.prisma as any;
+    return db.category.update({ where: { id }, data: { name } });
   }
 
   async uploadFile(file: Express.Multer.File, categoryId: number) {
@@ -74,3 +84,4 @@ export class KnowledgeService {
     return { deleted: true };
   }
 }
+
