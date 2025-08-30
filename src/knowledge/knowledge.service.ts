@@ -24,10 +24,43 @@ export class KnowledgeService {
   return db.category.findMany();
   }
 
-  async listFiles(categoryId?: number) {
+  async listFiles(opts?: { categoryId?: number; sort?: string; direction?: 'asc' | 'desc'; search?: string; tags?: string[] }) {
     const db = this.prisma as any;
-    const where = typeof categoryId === 'number' ? { category_id: categoryId } : {};
-    const rows: any[] = await db.file.findMany({ where, orderBy: { id: 'desc' } });
+    const categoryId = opts?.categoryId;
+    const sort = opts?.sort;
+    const direction = opts?.direction ?? 'desc';
+    const search = opts?.search;
+    const tags = opts?.tags;
+
+    const where: any = {};
+    if (typeof categoryId === 'number') where.category_id = categoryId;
+    if (typeof search === 'string' && search.trim() !== '') {
+      // basic search across name and original name
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+  // Tags filtering is applied in-memory below because DB column type may vary between deployments.
+
+    // try to apply ordering where possible in DB; fallback to in-memory
+    let rows: any[] = [];
+    try {
+      const orderBy: any = {};
+      if (sort && ['name', 'id', 'created_at', 'updated_at', 'size'].includes(sort)) {
+        // map friendly sort keys to DB columns
+        if (sort === 'uploadedAt') orderBy['created_at'] = direction;
+        else if (sort === 'lastModified') orderBy['updated_at'] = direction;
+        else orderBy[sort] = direction;
+      } else if (sort === 'name') {
+        orderBy['name'] = direction;
+      } else {
+        orderBy['id'] = 'desc';
+      }
+      rows = await db.file.findMany({ where, orderBy });
+    } catch (e) {
+      // if DB ordering fails for unexpected fields, fallback to simple fetch
+      rows = await db.file.findMany({ where, orderBy: { id: 'desc' } });
+    }
     // Enrich each file with the fields the frontend expects (size, uploadedAt, lastModified, mimeType, type, url, metadata)
     const fs = await import('fs');
     const path = await import('path');
@@ -38,7 +71,7 @@ export class KnowledgeService {
     const cats = await db.category.findMany();
     const catMap = new Map<number, string>(cats.map((c: any) => [c.id, c.name]));
 
-    const toFileItem = async (r: any) => {
+  const toFileItem = async (r: any) => {
       const out: any = { ...r };
       let fileName = '';
       try {
@@ -103,7 +136,28 @@ export class KnowledgeService {
       return fileItem;
     };
 
-    return Promise.all(rows.map(r => toFileItem(r)));
+    let items = await Promise.all(rows.map(r => toFileItem(r)));
+
+    // client-side filtering for fields not available in DB ordering (type, size, etc.)
+    if (sort && !['id', 'name', 'created_at', 'updated_at'].includes(sort)) {
+      const dir = direction === 'asc' ? 1 : -1;
+      items = items.sort((a: any, b: any) => {
+        const A = (a as any)[sort] ?? '';
+        const B = (b as any)[sort] ?? '';
+        if (typeof A === 'number' && typeof B === 'number') return (A - B) * dir;
+        return String(A).localeCompare(String(B)) * dir;
+      });
+    }
+
+    // if tags filter was provided but DB doesn't support hasSome, apply simple filter
+    if (Array.isArray(tags) && tags.length > 0) {
+      items = items.filter((it: any) => {
+        const t = Array.isArray(it.tags) ? it.tags : [];
+        return tags.every(tag => t.includes(tag));
+      });
+    }
+
+    return items;
   }
 
   async deleteCategory(id: number) {

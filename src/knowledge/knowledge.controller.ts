@@ -25,16 +25,33 @@ export class KnowledgeController {
   }
 
   @Get('files')
-  async listFiles(@Query('category_id') categoryIdRaw?: string) {
-    // Debugging: log incoming raw query param
-    console.log('[KnowledgeController] listFiles called with raw category_id=', categoryIdRaw);
+  async listFiles(
+    @Query('category_id') categoryIdRaw?: string,
+    @Query('sort') sort?: string,
+    @Query('direction') direction?: 'asc' | 'desc',
+    @Query('search') search?: string,
+    @Query('tags') tagsRaw?: string,
+  ) {
+    // Debugging: log incoming raw query params
+    console.log('[KnowledgeController] listFiles called with raw params:', { categoryIdRaw, sort, direction, search, tagsRaw });
     let categoryId: number | undefined = undefined;
     if (typeof categoryIdRaw !== 'undefined' && categoryIdRaw !== null && String(categoryIdRaw).trim() !== '') {
       const n = parseInt(String(categoryIdRaw), 10);
       if (!Number.isNaN(n)) categoryId = n;
     }
-    // If categoryId is provided, service will filter; otherwise return all files
-    return this.svc.listFiles(categoryId);
+
+    let tags: string[] | undefined = undefined;
+    if (typeof tagsRaw === 'string' && tagsRaw.trim() !== '') {
+      try {
+        // allow comma separated or JSON array
+        if (tagsRaw.trim().startsWith('[')) tags = JSON.parse(tagsRaw);
+        else tags = tagsRaw.split(',').map(s => s.trim()).filter(Boolean);
+      } catch (e) {
+        tags = tagsRaw.split(',').map(s => s.trim()).filter(Boolean);
+      }
+    }
+
+    return this.svc.listFiles({ categoryId, sort, direction, search, tags });
   }
 
   @Delete('categories/:id')
