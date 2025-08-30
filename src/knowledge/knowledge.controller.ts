@@ -1,5 +1,5 @@
-import { Controller, Post, Body, Get, Delete, Param, UploadedFile, UseInterceptors, ParseIntPipe, UseGuards, Query, Req } from '@nestjs/common';
-import { Request } from 'express';
+import { Controller, Post, Body, Get, Delete, Param, UploadedFile, UseInterceptors, ParseIntPipe, UseGuards, Query, Req, Res, Patch } from '@nestjs/common';
+import { Request, Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { KnowledgeService } from './knowledge.service';
 import { FileUploadService } from '../file-upload/file-upload.service';
@@ -65,5 +65,37 @@ export class KnowledgeController {
   async deleteFile(@Param('id', ParseIntPipe) id: number) {
     return this.svc.deleteFile(id);
   }
-}
+
+  @Get('files/:id/preview')
+  async previewFile(@Param('id', ParseIntPipe) id: number) {
+    // returns a shareable URL or file metadata for preview
+    return this.svc.getFileShareUrl(id);
+  }
+
+  @Get('files/:id/download')
+  async downloadFile(@Param('id', ParseIntPipe) id: number, @Res() res: Response) {
+    const result = await this.svc.downloadFile(id);
+    if (!result) {
+      return res.status(404).json({ message: 'File not found' });
+    }
+    if (result.stream) {
+      res.setHeader('Content-Type', result.mimeType || 'application/octet-stream');
+      res.setHeader('Content-Disposition', `attachment; filename="${result.name || 'file'}"`);
+      result.stream.pipe(res);
+      return;
+    }
+    // fallback: redirect to stored path (could be URL)
+    return res.redirect(result.url);
+  }
+
+  @Post('files/:id/share')
+  async shareFile(@Param('id', ParseIntPipe) id: number) {
+    return this.svc.shareFile(id);
+  }
+
+  @Patch('files/:id/rename')
+  async renameFile(@Param('id', ParseIntPipe) id: number, @Body('name') name: string) {
+    return this.svc.renameFile(id, name);
+  }
+      }
 
