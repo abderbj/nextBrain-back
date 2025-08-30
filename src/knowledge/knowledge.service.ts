@@ -200,10 +200,29 @@ export class KnowledgeService {
   const db = this.prisma as any;
   const f = await db.file.findUnique({ where: { id } });
     if (!f) throw new HttpException('File not found', HttpStatus.NOT_FOUND);
-    // optionally remove file from disk
+    // attempt to remove file from disk
+    try {
+      const fs = await import('fs');
+      const path = await import('path');
+      const uploadDir = this.config.get('UPLOAD_DIR') || 'uploads';
+      const filename = path.basename(String(f.path));
+      const fullPath = path.isAbsolute(uploadDir) ? path.join(uploadDir, filename) : path.join(process.cwd(), uploadDir, filename);
+      if (fs.existsSync(fullPath)) {
+        try {
+          fs.unlinkSync(fullPath);
+        } catch (e) {
+          // log and continue to delete DB record
+          console.warn('Failed to unlink file on delete:', e && (e as any).message ? (e as any).message : e);
+        }
+      }
+    } catch (e) {
+      // non-fatal — continue
+      console.warn('Error while attempting to remove file from disk:', e && (e as any).message ? (e as any).message : e);
+    }
+
     // delete DB record
-  await db.file.delete({ where: { id } });
-    return { deleted: true };
+    await db.file.delete({ where: { id } });
+    return { deleted: true, removedFromDisk: true, url: f.path };
   }
 }
 
