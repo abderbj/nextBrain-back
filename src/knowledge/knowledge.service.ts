@@ -28,51 +28,82 @@ export class KnowledgeService {
     const db = this.prisma as any;
     const where = typeof categoryId === 'number' ? { category_id: categoryId } : {};
     const rows: any[] = await db.file.findMany({ where, orderBy: { id: 'desc' } });
-
-    // Enrich each file with size, modifiedAt and mime/type where possible
+    // Enrich each file with the fields the frontend expects (size, uploadedAt, lastModified, mimeType, type, url, metadata)
     const fs = await import('fs');
     const path = await import('path');
 
     const uploadDir = this.config.get('UPLOAD_DIR') || 'uploads';
 
-    return Promise.all(rows.map(async (r) => {
+    // load categories once to map id -> name
+    const cats = await db.category.findMany();
+    const catMap = new Map<number, string>(cats.map((c: any) => [c.id, c.name]));
+
+    const toFileItem = async (r: any) => {
       const out: any = { ...r };
+      let fileName = '';
       try {
-        // stored path is like /uploads/filename or full URL
-        const fileName = (() => {
-          try {
-            const parsed = new URL(String(r.path));
-            return path.basename(parsed.pathname);
-          } catch (_) {
-            return path.basename(String(r.path));
-          }
-        })();
+        try {
+          const parsed = new URL(String(r.path));
+          fileName = path.basename(parsed.pathname);
+        } catch (_) {
+          fileName = path.basename(String(r.path));
+        }
 
         const fullPath = path.isAbsolute(uploadDir) ? path.join(uploadDir, fileName) : path.join(process.cwd(), uploadDir, fileName);
         if (fs.existsSync(fullPath)) {
           const stats = fs.statSync(fullPath);
           out.size = Number(stats.size);
-          out.modifiedAt = stats.mtime.toISOString();
-          // infer simple mime/type from extension
-          const ext = path.extname(fileName).toLowerCase().replace('.', '');
-          out.mimeType = ext === 'pdf' ? 'application/pdf' : (ext ? `application/${ext}` : 'application/octet-stream');
-          out.type = ext.toUpperCase() || 'FILE';
+          out.uploadedAt = stats.ctime.toISOString();
+          out.lastModified = stats.mtime.toISOString();
         } else {
-          // fallbacks when file is stored remotely or not found
-          out.size = r.size ?? 0;
-          out.modifiedAt = r.updated_at ? new Date(r.updated_at).toISOString() : null;
-          out.mimeType = r.mimeType || null;
-          out.type = r.type || null;
+          out.size = Number(r.size ?? 0);
+          // fallback to DB timestamps if available; otherwise use now
+          out.uploadedAt = r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString();
+          out.lastModified = r.updated_at ? new Date(r.updated_at).toISOString() : out.uploadedAt;
         }
+
+        const ext = path.extname(fileName).toLowerCase().replace('.', '');
+        out.mimeType = ext === 'pdf' ? 'application/pdf' : (ext ? `application/${ext}` : (r.mimeType || 'application/octet-stream'));
+        out.type = (ext ? ext.toUpperCase() : (r.type || 'FILE'));
       } catch (e) {
-        out.size = r.size ?? 0;
-        out.modifiedAt = r.updated_at ? new Date(r.updated_at).toISOString() : null;
-        out.mimeType = r.mimeType || null;
-        out.type = r.type || null;
+        out.size = Number(r.size ?? 0);
+        out.uploadedAt = r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString();
+        out.lastModified = r.updated_at ? new Date(r.updated_at).toISOString() : out.uploadedAt;
+        out.mimeType = r.mimeType || 'application/octet-stream';
+        out.type = r.type || 'FILE';
       }
 
-      return out;
-    }));
+      // Construct a frontend-friendly file item
+      const fileItem = {
+        id: String(r.id),
+        name: r.name,
+        originalName: r.name,
+        size: Number(out.size ?? 0),
+        type: out.type,
+        mimeType: out.mimeType,
+        url: r.path,
+        thumbnailUrl: null,
+        uploadedBy: r.uploaded_by ?? 'admin',
+        uploadedAt: out.uploadedAt,
+        lastModified: out.lastModified,
+        projectId: r.project_id ?? null,
+        folderId: r.folder_id ?? null,
+        tags: r.tags ?? [],
+        metadata: {
+          category: catMap.get(r.category_id) ?? String(r.category_id),
+          version: 1,
+          checksum: r.checksum ?? ''
+        },
+        isShared: false,
+        sharedWith: [],
+        downloadCount: Number(r.download_count ?? 0),
+        status: 'ready'
+      };
+
+      return fileItem;
+    };
+
+    return Promise.all(rows.map(r => toFileItem(r)));
   }
 
   async deleteCategory(id: number) {
@@ -127,7 +158,7 @@ export class KnowledgeService {
     // If stored as URL return it, otherwise build from BASE_URL
     const baseUrl = this.config.get('BASE_URL') || '';
     const url = f.path?.startsWith('http') ? f.path : `${baseUrl}/uploads/${f.path?.split('/').pop()}`;
-    return { url, id: f.id, name: f.name };
+  return { url, id: f.id, name: f.name };
   }
 
   async downloadFile(id: number) {
@@ -152,9 +183,17 @@ export class KnowledgeService {
   }
 
   async renameFile(id: number, name: string) {
-    const db = this.prisma as any;
-    const f = await db.file.update({ where: { id }, data: { name } });
-    return f;
+  const db = this.prisma as any;
+  const f = await db.file.update({ where: { id }, data: { name } });
+
+  // Return frontend-friendly shape
+  // reuse listFiles mapping logic by fetching the updated record and transforming
+  const rows = await db.file.findMany({ where: { id: Number(id) } });
+  if (!rows || rows.length === 0) return f;
+  const mapped = await this.listFiles();
+  // find by id and return the transformed item if present
+  const found = mapped.find((it: any) => Number(it.id) === Number(id) || String(it.id) === String(id));
+  return found || f;
   }
 
   async deleteFile(id: number) {
