@@ -24,9 +24,10 @@ export class KnowledgeService {
   return db.category.findMany();
   }
 
-  async listFiles() {
+  async listFiles(categoryId?: number) {
     const db = this.prisma as any;
-    return db.file.findMany({ orderBy: { id: 'desc' } });
+    const where = typeof categoryId === 'number' ? { category_id: categoryId } : {};
+    return db.file.findMany({ where, orderBy: { id: 'desc' } });
   }
 
   async deleteCategory(id: number) {
@@ -61,9 +62,9 @@ export class KnowledgeService {
 
     try {
       const resp$ = this.httpService.post(ragUrl, {
-        file_id: created.id,
-        path: ingestPath,
-        category_id: categoryId,
+  file_id: created.id,
+  path: ingestPath,
+  category_id: categoryId,
       });
       await firstValueFrom(resp$);
     } catch (err) {
