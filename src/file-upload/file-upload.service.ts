@@ -18,10 +18,15 @@ export class FileUploadService {
       storage: diskStorage({
         destination,
         filename: (req, file, cb) => {
-          const uniqueSuffix =
-            Date.now() + '-' + Math.round(Math.random() * 1e9);
+          // sanitize original name (remove extension, replace spaces/unsafe chars)
+          const original = file.originalname.replace(/\.[^/.]+$/, '');
+          const safe = original
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/(^-|-$)/g, '');
           const ext = extname(file.originalname);
-          cb(null, `${fieldName}-${uniqueSuffix}${ext}`);
+          const random = Math.floor(Math.random() * 1e9);
+          cb(null, `${safe}-${random}${ext}`);
         },
       }),
       fileFilter: (req, file, cb) => {

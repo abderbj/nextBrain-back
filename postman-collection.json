@@ -998,5 +998,67 @@
         }
       ]
     }
+    ,
+    {
+      "name": "Knowledge Center",
+      "item": [
+        {
+          "name": "Create Category",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{ \"name\": \"My Category\" }" },
+            "url": { "raw": "{{base_url}}/admin/knowledge/categories", "host": ["{{base_url}}"], "path": ["admin", "knowledge", "categories"] },
+            "description": "Create a new knowledge category (admin)"
+          }
+        },
+        {
+          "name": "List Categories",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Authorization", "value": "Bearer {{access_token}}" } ],
+            "url": { "raw": "{{base_url}}/admin/knowledge/categories", "host": ["{{base_url}}"], "path": ["admin", "knowledge", "categories"] },
+            "description": "List all knowledge categories"
+          }
+        },
+        {
+          "name": "Delete Category",
+          "request": {
+            "method": "DELETE",
+            "header": [ { "key": "Authorization", "value": "Bearer {{access_token}}" } ],
+            "url": { "raw": "{{base_url}}/admin/knowledge/categories/:id", "host": ["{{base_url}}"], "path": ["admin", "knowledge", "categories", ":id"] },
+            "description": "Delete a category by id (replace :id in the URL)"
+          }
+        },
+        {
+          "name": "Upload File",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Authorization", "value": "Bearer {{access_token}}" } ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "category_id", "value": "1", "type": "text" },
+                { "key": "file", "type": "file", "src": [] }
+              ]
+            },
+            "url": { "raw": "{{base_url}}/admin/knowledge/files", "host": ["{{base_url}}"], "path": ["admin", "knowledge", "files"] },
+            "description": "Upload a file and associate it with a category (use form-data)"
+          }
+        },
+        {
+          "name": "Delete File",
+          "request": {
+            "method": "DELETE",
+            "header": [ { "key": "Authorization", "value": "Bearer {{access_token}}" } ],
+            "url": { "raw": "{{base_url}}/admin/knowledge/files/:id", "host": ["{{base_url}}"], "path": ["admin", "knowledge", "files", ":id"] },
+            "description": "Delete a file by id (replace :id in the URL)"
+          }
+        }
+      ]
+    }
   ]
 }

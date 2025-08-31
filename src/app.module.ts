@@ -17,6 +17,7 @@ import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
 import { FileUploadModule } from './file-upload/file-upload.module';
 import { InvitationsModule } from './invitations/invitations.module';
+import { KnowledgeModule } from './knowledge/knowledge.module';
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { InvitationsModule } from './invitations/invitations.module';
     GeminiModule,
     FileUploadModule,
     InvitationsModule,
+  KnowledgeModule,
   ],
   controllers: [AppController],
   providers: [

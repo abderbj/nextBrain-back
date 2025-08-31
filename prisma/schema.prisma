@@ -89,3 +89,23 @@ enum ModelType {
   GEMINI
   LLAMA
 }
+
+model Category {
+  id   Int    @id @default(autoincrement())
+  name String @unique
+
+  files File[]
+
+  @@map("categories")
+}
+
+model File {
+  id          Int      @id @default(autoincrement())
+  name        String
+  path        String
+  category_id Int
+  category    Category @relation(fields: [category_id], references: [id], onDelete: Cascade)
+
+  @@index([category_id])
+  @@map("files")
+}
