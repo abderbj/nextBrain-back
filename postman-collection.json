@@ -46,6 +46,19 @@
       "value": "",
       "type": "string"
     }
+    ,
+    {
+      "key": "assistantCategoryId",
+      "value": "",
+      "type": "string",
+      "description": "Optional: category id for RAG-backed assistants"
+    },
+    {
+      "key": "RAG_SERVICE_URL",
+      "value": "http://localhost:8001",
+      "type": "string",
+      "description": "RAG service base URL (used by backend, useful for tests)"
+    }
   ],
   "item": [
     {
@@ -541,11 +554,23 @@
               "mode": "raw",
               "raw": "{\n  \"role\": \"user\",\n  \"content\": \"Hello! Tell me a short story about AI.\"\n}"
             },
-            "url": {
-              "raw": "{{base_url}}/llama/chat/{{chat_id}}/message/stream",
-              "host": ["{{base_url}}"],
-              "path": ["llama", "chat", "{{chat_id}}", "message", "stream"]
-            },
+                "url": {
+                  "raw": "{{base_url}}/llama/chat/{{chat_id}}/message/stream?assistant={{assistant}}&assistantCategoryId={{assistantCategoryId}}",
+                  "host": ["{{base_url}}"],
+                  "path": ["llama", "chat", "{{chat_id}}", "message", "stream"],
+                  "query": [
+                    {
+                      "key": "assistant",
+                      "value": "general",
+                      "description": "Which assistant to use: 'general' or 'category'"
+                    },
+                    {
+                      "key": "assistantCategoryId",
+                      "value": "",
+                      "description": "Optional: category id for RAG-backed assistant"
+                    }
+                  ]
+                },
             "description": "Send message with streaming response (recommended for better performance)"
           }
         },
@@ -567,11 +592,23 @@
               "mode": "raw",
               "raw": "{\n  \"role\": \"user\",\n  \"content\": \"Hello! Can you tell me a short joke?\"\n}"
             },
-            "url": {
-              "raw": "{{base_url}}/llama/chat/{{chat_id}}/message",
-              "host": ["{{base_url}}"],
-              "path": ["llama", "chat", "{{chat_id}}", "message"]
-            },
+                "url": {
+                  "raw": "{{base_url}}/llama/chat/{{chat_id}}/message?assistant={{assistant}}&assistantCategoryId={{assistantCategoryId}}",
+                  "host": ["{{base_url}}"],
+                  "path": ["llama", "chat", "{{chat_id}}", "message"],
+                  "query": [
+                    {
+                      "key": "assistant",
+                      "value": "general",
+                      "description": "Which assistant to use: 'general' or 'category'"
+                    },
+                    {
+                      "key": "assistantCategoryId",
+                      "value": "",
+                      "description": "Optional: category id for RAG-backed assistant"
+                    }
+                  ]
+                },
             "description": "Send message with complete response (60s timeout)"
           }
         },
@@ -648,9 +685,21 @@
               }
             ],
             "url": {
-              "raw": "{{base_url}}/llama/chat/{{chat_id}}/regenerate",
+              "raw": "{{base_url}}/llama/chat/{{chat_id}}/regenerate?assistant={{assistant}}&assistantCategoryId={{assistantCategoryId}}",
               "host": ["{{base_url}}"],
-              "path": ["llama", "chat", "{{chat_id}}", "regenerate"]
+              "path": ["llama", "chat", "{{chat_id}}", "regenerate"],
+              "query": [
+                {
+                  "key": "assistant",
+                  "value": "general",
+                  "description": "Which assistant to use: 'general' or 'category'"
+                },
+                {
+                  "key": "assistantCategoryId",
+                  "value": "",
+                  "description": "Optional: category id for RAG-backed assistant"
+                }
+              ]
             },
             "description": "Regenerate the last assistant response"
           }
@@ -757,9 +806,21 @@
               "raw": "{\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Hello! Can you help me with a coding question?\"\n    }\n  ]\n}"
             },
             "url": {
-              "raw": "{{base_url}}/gemini/chat/{{chat_id}}/message",
+              "raw": "{{base_url}}/gemini/chat/{{chat_id}}/message?assistant={{assistant}}&assistantCategoryId={{assistantCategoryId}}",
               "host": ["{{base_url}}"],
-              "path": ["gemini", "chat", "{{chat_id}}", "message"]
+              "path": ["gemini", "chat", "{{chat_id}}", "message"],
+              "query": [
+                {
+                  "key": "assistant",
+                  "value": "general",
+                  "description": "Which assistant to use: 'general' or 'category'"
+                },
+                {
+                  "key": "assistantCategoryId",
+                  "value": "",
+                  "description": "Optional: category id for RAG-backed assistant"
+                }
+              ]
             },
             "description": "Send message to Gemini (expects messages array)"
           }
@@ -837,9 +898,21 @@
               }
             ],
             "url": {
-              "raw": "{{base_url}}/gemini/chat/{{chat_id}}/regenerate",
+              "raw": "{{base_url}}/gemini/chat/{{chat_id}}/regenerate?assistant={{assistant}}&assistantCategoryId={{assistantCategoryId}}",
               "host": ["{{base_url}}"],
-              "path": ["gemini", "chat", "{{chat_id}}", "regenerate"]
+              "path": ["gemini", "chat", "{{chat_id}}", "regenerate"],
+              "query": [
+                {
+                  "key": "assistant",
+                  "value": "general",
+                  "description": "Which assistant to use: 'general' or 'category'"
+                },
+                {
+                  "key": "assistantCategoryId",
+                  "value": "",
+                  "description": "Optional: category id for RAG-backed assistant"
+                }
+              ]
             },
             "description": "Regenerate the last Gemini response"
           }
@@ -999,66 +1072,172 @@
       ]
     }
     ,
-    {
-      "name": "Knowledge Center",
-      "item": [
         {
-          "name": "Create Category",
-          "request": {
-            "method": "POST",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{access_token}}" }
-            ],
-            "body": { "mode": "raw", "raw": "{ \"name\": \"My Category\" }" },
-            "url": { "raw": "{{base_url}}/admin/knowledge/categories", "host": ["{{base_url}}"], "path": ["admin", "knowledge", "categories"] },
-            "description": "Create a new knowledge category (admin)"
-          }
-        },
-        {
-          "name": "List Categories",
-          "request": {
-            "method": "GET",
-            "header": [ { "key": "Authorization", "value": "Bearer {{access_token}}" } ],
-            "url": { "raw": "{{base_url}}/admin/knowledge/categories", "host": ["{{base_url}}"], "path": ["admin", "knowledge", "categories"] },
-            "description": "List all knowledge categories"
-          }
-        },
-        {
-          "name": "Delete Category",
-          "request": {
-            "method": "DELETE",
-            "header": [ { "key": "Authorization", "value": "Bearer {{access_token}}" } ],
-            "url": { "raw": "{{base_url}}/admin/knowledge/categories/:id", "host": ["{{base_url}}"], "path": ["admin", "knowledge", "categories", ":id"] },
-            "description": "Delete a category by id (replace :id in the URL)"
-          }
-        },
-        {
-          "name": "Upload File",
-          "request": {
-            "method": "POST",
-            "header": [ { "key": "Authorization", "value": "Bearer {{access_token}}" } ],
-            "body": {
-              "mode": "formdata",
-              "formdata": [
-                { "key": "category_id", "value": "1", "type": "text" },
-                { "key": "file", "type": "file", "src": [] }
-              ]
+          "name": "Knowledge Center",
+          "item": [
+            {
+              "name": "Create Category",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" },
+                  { "key": "Authorization", "value": "Bearer {{access_token}}" }
+                ],
+                "body": { "mode": "raw", "raw": "{ \"name\": \"My Category\" }" },
+                "url": { "raw": "{{base_url}}/admin/knowledge/categories", "host": ["{{base_url}}"], "path": ["admin", "knowledge", "categories"] },
+                "description": "Create a new knowledge category (admin)"
+              }
             },
-            "url": { "raw": "{{base_url}}/admin/knowledge/files", "host": ["{{base_url}}"], "path": ["admin", "knowledge", "files"] },
-            "description": "Upload a file and associate it with a category (use form-data)"
-          }
+            {
+              "name": "List Categories",
+              "request": {
+                "method": "GET",
+                "header": [ { "key": "Authorization", "value": "Bearer {{access_token}}" } ],
+                "url": { "raw": "{{base_url}}/admin/knowledge/categories", "host": ["{{base_url}}"], "path": ["admin", "knowledge", "categories"] },
+                "description": "List all knowledge categories"
+              }
+            },
+            {
+              "name": "Delete Category",
+              "request": {
+                "method": "DELETE",
+                "header": [ { "key": "Authorization", "value": "Bearer {{access_token}}" } ],
+                "url": { "raw": "{{base_url}}/admin/knowledge/categories/:id", "host": ["{{base_url}}"], "path": ["admin", "knowledge", "categories", ":id"] },
+                "description": "Delete a category by id (replace :id in the URL)"
+              }
+            },
+            {
+              "name": "Upload File",
+              "request": {
+                "method": "POST",
+                "header": [ { "key": "Authorization", "value": "Bearer {{access_token}}" } ],
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    { "key": "category_id", "value": "1", "type": "text" },
+                    { "key": "file", "type": "file", "src": [] }
+                  ]
+                },
+                "url": { "raw": "{{base_url}}/admin/knowledge/files", "host": ["{{base_url}}"], "path": ["admin", "knowledge", "files"] },
+                "description": "Upload a file and associate it with a category (use form-data)"
+              }
+            },
+            {
+              "name": "Delete File",
+              "request": {
+                "method": "DELETE",
+                "header": [ { "key": "Authorization", "value": "Bearer {{access_token}}" } ],
+                "url": { "raw": "{{base_url}}/admin/knowledge/files/:id", "host": ["{{base_url}}"], "path": ["admin", "knowledge", "files", ":id"] },
+                "description": "Delete a file by id (replace :id in the URL)"
+              }
+            }
+        ,
+            {
+              "name": "Preview File",
+              "request": {
+                "method": "GET",
+                "header": [ { "key": "Authorization", "value": "Bearer {{access_token}}" } ],
+                "url": { "raw": "{{base_url}}/admin/knowledge/files/:id/preview", "host": ["{{base_url}}"], "path": ["admin","knowledge","files",":id","preview"] },
+                "description": "Get a shareable preview URL or metadata for a file"
+              }
+            },
+            {
+              "name": "Download File",
+              "request": {
+                "method": "GET",
+                "header": [ { "key": "Authorization", "value": "Bearer {{access_token}}" } ],
+                "url": { "raw": "{{base_url}}/admin/knowledge/files/:id/download", "host": ["{{base_url}}"], "path": ["admin","knowledge","files",":id","download"] },
+                "description": "Download a stored file (streams or redirects to URL)"
+              }
+            },
+            {
+              "name": "Share File",
+              "request": {
+                "method": "POST",
+                "header": [ { "key": "Authorization", "value": "Bearer {{access_token}}" } ],
+                "url": { "raw": "{{base_url}}/admin/knowledge/files/:id/share", "host": ["{{base_url}}"], "path": ["admin","knowledge","files",":id","share"] },
+                "description": "Create a public share for a file"
+              }
+            },
+            {
+              "name": "Rename File",
+              "request": {
+                "method": "PATCH",
+                "header": [ { "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{access_token}}" } ],
+                "body": { "mode": "raw", "raw": "{ \"name\": \"new-name.pdf\" }" },
+                "url": { "raw": "{{base_url}}/admin/knowledge/files/:id/rename", "host": ["{{base_url}}"], "path": ["admin","knowledge","files",":id","rename"] },
+                "description": "Rename a file by id"
+              }
+            }
+          ]
         },
         {
-          "name": "Delete File",
-          "request": {
-            "method": "DELETE",
-            "header": [ { "key": "Authorization", "value": "Bearer {{access_token}}" } ],
-            "url": { "raw": "{{base_url}}/admin/knowledge/files/:id", "host": ["{{base_url}}"], "path": ["admin", "knowledge", "files", ":id"] },
-            "description": "Delete a file by id (replace :id in the URL)"
-          }
+          "name": "RAG Service",
+          "item": [
+            {
+              "name": "RAG Root",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{RAG_SERVICE_URL}}/",
+                  "host": ["{{RAG_SERVICE_URL}}"],
+                  "path": [""]
+                },
+                "description": "RAG service root - lists endpoints and examples"
+              }
+            },
+            {
+              "name": "Ingest File",
+              "request": {
+                "method": "POST",
+                "header": [ { "key": "Authorization", "value": "Bearer {{access_token}}" } ],
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    { "key": "category_id", "value": "optional_category", "type": "text" },
+                    { "key": "file", "type": "file", "src": [] }
+                  ]
+                },
+                "url": {
+                  "raw": "{{RAG_SERVICE_URL}}/ingest",
+                  "host": ["{{RAG_SERVICE_URL}}"],
+                  "path": ["ingest"]
+                },
+                "description": "Upload a document to the RAG service (multipart/form-data). Provide optional category_id."
+              }
+            },
+            {
+              "name": "Query Documents",
+              "request": {
+                "method": "POST",
+                "header": [ { "key": "Content-Type", "value": "application/json" } ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"question\": \"What are the key policies?\",\n  \"limit\": 5,\n  \"category_id\": \"optional_category\"\n}\n\n// Response will include `source_chunks` array. The RAG service no longer generates the final answer; the backend LLMs will use these chunks to produce the final response."
+                },
+                "url": {
+                  "raw": "{{RAG_SERVICE_URL}}/query",
+                  "host": ["{{RAG_SERVICE_URL}}"],
+                  "path": ["query"]
+                },
+                "description": "Query the vector database. Use category_id to limit search to a category (optional)."
+              }
+            },
+            {
+              "name": "Clear Database",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{RAG_SERVICE_URL}}/clear",
+                  "host": ["{{RAG_SERVICE_URL}}"],
+                  "path": ["clear"]
+                },
+                "description": "Clear and recreate the vector database collection"
+              }
+            }
+          ]
         }
-      ]
-    }
   ]
 }

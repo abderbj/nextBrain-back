@@ -90,6 +90,76 @@ export class LlamaService {
         }
     }
 
+    // Try multiple RAG service base URLs (configured one, then host.docker.internal, 127.0.0.1, localhost)
+    // Returns concatenated chunk text or empty string on failure.
+    private async fetchRagContext(question: string, assistantCategoryId?: number): Promise<string> {
+        if (!assistantCategoryId) return '';
+
+        const tried: string[] = [];
+        const bases = [] as string[];
+        if (process.env.RAG_SERVICE_URL) bases.push(process.env.RAG_SERVICE_URL);
+        bases.push('http://host.docker.internal:8001');
+        bases.push('http://127.0.0.1:8001');
+        bases.push('http://localhost:8001');
+
+        // Deduplicate while preserving order
+        const uniqueBases = Array.from(new Set(bases.map(b => b.replace(/\/$/, ''))));
+
+        for (const base of uniqueBases) {
+            const ragUrl = base.endsWith('/query') ? base : `${base}/query`;
+            tried.push(ragUrl);
+            try {
+                console.log(`Trying RAG URL: ${ragUrl}`);
+                const { data } = await axios.post(ragUrl, {
+                    question,
+                    limit: 5,
+                    category_id: String(assistantCategoryId),
+                }, { timeout: 3000 });
+
+                if (data && Array.isArray(data.source_chunks) && data.source_chunks.length > 0) {
+                    // Deduplicate by chunk_id (or fallback to text) and limit total size to avoid overwhelming the model
+                    const chunks = data.source_chunks as Array<any>;
+                    const uniqueMap = new Map<string | number, any>();
+                    for (const c of chunks) {
+                        const key = c.chunk_id ?? c.id ?? c.text;
+                        if (!uniqueMap.has(key)) uniqueMap.set(key, c);
+                    }
+                    const uniqueChunks = Array.from(uniqueMap.values());
+
+                    const MAX_CHUNKS = 5; // take top-N chunks
+                    const MAX_CHARS = 4000; // cap combined characters
+
+                    const selected: any[] = [];
+                    let chars = 0;
+                    for (const c of uniqueChunks) {
+                        if (selected.length >= MAX_CHUNKS) break;
+                        const text = String(c.text || '').trim();
+                        if (!text) continue;
+                        if (chars + text.length > MAX_CHARS) break;
+                        selected.push(c);
+                        chars += text.length;
+                    }
+
+                    const ragContext = selected.map((c: any, i: number) => `Chunk ${i + 1} (file: ${c.file_path ?? 'unknown'}): ${c.text}`).join('\n\n');
+                    console.log(`RAG returned ${chunks.length} chunks from ${ragUrl}, using ${selected.length} unique chunks (${chars} chars)`);
+                    return ragContext;
+                }
+
+                // If we got a successful response but no chunks, return empty so caller can continue
+                console.log(`RAG responded but returned 0 chunks from ${ragUrl}`);
+                return '';
+            } catch (err: any) {
+                // Connection refused / not found - try next base
+                const msg = err?.message || String(err);
+                console.warn(`RAG request to ${ragUrl} failed: ${msg}`);
+                // continue to next candidate
+            }
+        }
+
+        console.warn('All RAG endpoints tried and failed:', tried.join(', '));
+        return '';
+    }
+
     async createChat(userId: number, title = 'New Chat'): Promise<number> {
         const conversation = await this.prisma.chatbotConversation.create({
             data: {
@@ -118,9 +188,10 @@ export class LlamaService {
 
     async addMessageAndGetCompletion(
         chatId: number,
-        message: ChatCompetionMessageDto
+        message: ChatCompetionMessageDto,
+        assistantCategoryId?: number
     ): Promise<{ response: string | null }> {
-        const conversation = await this.prisma.chatbotConversation.findFirst({
+    const conversation = await this.prisma.chatbotConversation.findFirst({
             where: { 
                 id: chatId,
                 model_type: ModelType.LLAMA
@@ -163,6 +234,9 @@ export class LlamaService {
             orderBy: { sent_at: 'asc' },
         });
 
+    // If assistantCategoryId is provided, query RAG service for context using resilient helper
+    const ragContext = await this.fetchRagContext(message.content, assistantCategoryId);
+
         // Add system message if this is the first message and convert to Llama format
         const llamaMessages: Array<{ role: string; content: string }> = [];
         if (allMessages.length === 1) {
@@ -178,6 +252,11 @@ export class LlamaService {
             content: msg.message
         })));
 
+        // If we have ragContext, prepend it as a system message to guide the model
+        if (ragContext) {
+            llamaMessages.unshift({ role: 'system', content: `Use the following contextual chunks from the knowledge base to answer the user's question:\n\n${ragContext}` });
+        }
+
         // Prepare request headers
         const headers: Record<string, string> = {
             'Content-Type': 'application/json',
@@ -190,18 +269,11 @@ export class LlamaService {
                 messages: llamaMessages,
                 stream: false,
             });
-            
-            // Prepare headers. Some host setups (container -> host.docker.internal)
-            // require preserving the host header expected by Ollama. If the
-            // configured baseUrl includes host.docker.internal we add a Host
-            // header pointing to 127.0.0.1:11434 which resolves to the host.
-            const headers: Record<string, string> = {
-                'Content-Type': 'application/json',
-            };
-            // Send all messages to Llama
+
             // Ensure model availability and possibly fallback before request
             await this.ensureModelAvailable();
 
+            // Send all messages to Llama
             const response = await axios.post(this.baseUrl, {
                 model: this.model,
                 messages: llamaMessages,
@@ -210,7 +282,7 @@ export class LlamaService {
                 timeout: 60000, // Increased to 60 seconds for non-streaming
                 headers
             });
-            
+
             const aiMessage = response.data.message;
             log('Llama response:', aiMessage);
             if (aiMessage && aiMessage.content) {
@@ -225,14 +297,14 @@ export class LlamaService {
                 return { response: aiMessage.content };
             }
             return { response: null };
-    } catch (error) {
+        } catch (error) {
             console.error('Llama API error details (addMessageAndGetCompletion):');
             console.error('- URL:', this.baseUrl);
             console.error('- Error message:', error.message);
             console.error('- Error code:', error.code);
             console.error('- Response status:', error.response?.status);
             console.error('- Response data:', error.response?.data);
-            
+
             // If Ollama indicates the model is not found, try to fallback to llama3.2 once
             const respData: any = error.response?.data;
             if (error.response?.status === 404 && respData && typeof respData.error === 'string' && respData.error.includes('model')) {
@@ -267,7 +339,7 @@ export class LlamaService {
             if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
                 throw new Error(`Cannot connect to Ollama at ${this.baseUrl}. Make sure Ollama is running and accessible.`);
             }
-            
+
             throw new Error(`Failed to get response from Llama: ${error.message}`);
         }
     }
@@ -275,7 +347,8 @@ export class LlamaService {
     async addMessageAndGetCompletionStream(
         chatId: number,
         message: ChatCompetionMessageDto,
-        res: any
+        res: any,
+        assistantCategoryId?: number
     ): Promise<void> {
         const conversation = await this.prisma.chatbotConversation.findFirst({
             where: { 
@@ -320,6 +393,9 @@ export class LlamaService {
             orderBy: { sent_at: 'asc' },
         });
 
+    // If assistantCategoryId is provided, query RAG service for context using resilient helper
+    const ragContext = await this.fetchRagContext(message.content, assistantCategoryId);
+
         // Add system message if this is the first message and convert to Llama format
         const llamaMessages: Array<{ role: string; content: string }> = [];
         if (allMessages.length === 1) {
@@ -334,6 +410,11 @@ export class LlamaService {
             role: msg.sender_type === 'USER' ? 'user' : 'assistant',
             content: msg.message
         })));
+
+        // If we have ragContext, prepend it as a system message to guide the model
+        if (ragContext) {
+            llamaMessages.unshift({ role: 'system', content: `Use the following contextual chunks from the knowledge base to answer the user's question:\n\n${ragContext}` });
+        }
 
         let accumulatedContent = '';
 
@@ -521,7 +602,7 @@ export class LlamaService {
     }
 
     // Regenerate last assistant response
-    async regenerateLastResponse(chatId: number): Promise<{ response: string | null }> {
+    async regenerateLastResponse(chatId: number, assistantCategoryId?: number): Promise<{ response: string | null }> {
         const conversation = await this.prisma.chatbotConversation.findFirst({
             where: { 
                 id: chatId,
@@ -551,6 +632,9 @@ export class LlamaService {
             orderBy: { sent_at: 'asc' },
         });
 
+    // If assistantCategoryId is provided, query RAG service for context using resilient helper
+    const ragContext = await this.fetchRagContext(allMessages.map(m => m.message).join('\n'), assistantCategoryId);
+
         // Prepare messages for Llama
         const llamaMessages: Array<{ role: string; content: string }> = [];
         if (allMessages.length > 0) {
@@ -565,6 +649,10 @@ export class LlamaService {
             role: msg.sender_type === 'USER' ? 'user' : 'assistant',
             content: msg.message
         })));
+
+        if (ragContext) {
+            llamaMessages.unshift({ role: 'system', content: `Use the following contextual chunks from the knowledge base to answer the user's question:\n\n${ragContext}` });
+        }
 
         try {
             console.log('Regenerating response - sending request to Llama API:', this.baseUrl);
