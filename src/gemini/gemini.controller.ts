@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Param, Patch, Get, Delete, HttpException, HttpStatus, Req } from '@nestjs/common';
+import { Controller, Post, Body, Param, Patch, Get, Delete, HttpException, HttpStatus, Req, Query } from '@nestjs/common';
 import { ChatCompletionMessageDto } from './dto/create-chat-completion.request';
 import { GeminiService, GeminiChatMetadata } from './gemini.service';
 import { Auth } from '../common/decorators/auth.decorator';
@@ -28,7 +28,9 @@ export class GeminiController {
     @Post(':chatId/message')
     async sendMessage(
         @Param('chatId') chatId: string,
-        @Body() body: { messages: ChatCompletionMessageDto[] }
+        @Body() body: { messages: ChatCompletionMessageDto[] },
+    @Query('assistant') assistant?: string,
+    @Query('assistantCategoryId') assistantCategoryId?: string,
     ) {
         
         if (!body || !body.messages || !Array.isArray(body.messages) || body.messages.length === 0) {
@@ -43,16 +45,36 @@ export class GeminiController {
         }
 
         try {
-            return await this.geminiService.addMessageAndGetCompletion(parseInt(chatId), lastMessage);
+            let categoryId: number | undefined;
+            if (assistant === 'general') {
+                categoryId = undefined;
+            } else if (assistantCategoryId) {
+                categoryId = parseInt(assistantCategoryId);
+            } else {
+                categoryId = undefined;
+            }
+            return await this.geminiService.addMessageAndGetCompletion(parseInt(chatId), lastMessage, categoryId);
         } catch (e) {
             throw new HttpException(e.message, HttpStatus.NOT_FOUND);
         }
     }
 
     @Post(':chatId/regenerate')
-    async regenerate(@Param('chatId') chatId: string) {
+    async regenerate(
+        @Param('chatId') chatId: string,
+        @Query('assistant') assistant?: string,
+        @Query('assistantCategoryId') assistantCategoryId?: string
+    ) {
         try {
-            return await this.geminiService.regenerateLastResponse(parseInt(chatId));
+            let categoryId: number | undefined;
+            if (assistant === 'general') {
+                categoryId = undefined;
+            } else if (assistantCategoryId) {
+                categoryId = parseInt(assistantCategoryId);
+            } else {
+                categoryId = undefined;
+            }
+            return await this.geminiService.regenerateLastResponse(parseInt(chatId), categoryId);
         } catch (e) {
             throw new HttpException(e.message, HttpStatus.NOT_FOUND);
         }

@@ -24,6 +24,69 @@ export class GeminiService {
 
     constructor(private readonly prisma: PrismaService) {}
 
+    // Try multiple RAG service base URLs (configured one, then host.docker.internal, 127.0.0.1, localhost)
+    private async fetchRagContext(question: string, assistantCategoryId?: number): Promise<string> {
+        if (!assistantCategoryId) return '';
+
+        const tried: string[] = [];
+        const bases = [] as string[];
+        if (process.env.RAG_SERVICE_URL) bases.push(process.env.RAG_SERVICE_URL as string);
+        bases.push('http://host.docker.internal:8001');
+        bases.push('http://127.0.0.1:8001');
+        bases.push('http://localhost:8001');
+
+        const uniqueBases = Array.from(new Set(bases.map(b => b.replace(/\/$/, ''))));
+
+        for (const base of uniqueBases) {
+            const ragUrl = base.endsWith('/query') ? base : `${base}/query`;
+            tried.push(ragUrl);
+            try {
+                console.log(`Trying RAG URL: ${ragUrl}`);
+                const { data } = await axios.post(ragUrl, {
+                    question,
+                    limit: 5,
+                    category_id: String(assistantCategoryId),
+                }, { timeout: 3000 });
+
+                if (data && Array.isArray(data.source_chunks) && data.source_chunks.length > 0) {
+                    const chunks = data.source_chunks as Array<any>;
+                    const uniqueMap = new Map<string | number, any>();
+                    for (const c of chunks) {
+                        const key = c.chunk_id ?? c.id ?? c.text;
+                        if (!uniqueMap.has(key)) uniqueMap.set(key, c);
+                    }
+                    const uniqueChunks = Array.from(uniqueMap.values());
+
+                    const MAX_CHUNKS = 5;
+                    const MAX_CHARS = 4000;
+
+                    const selected: any[] = [];
+                    let chars = 0;
+                    for (const c of uniqueChunks) {
+                        if (selected.length >= MAX_CHUNKS) break;
+                        const text = String(c.text || '').trim();
+                        if (!text) continue;
+                        if (chars + text.length > MAX_CHARS) break;
+                        selected.push(c);
+                        chars += text.length;
+                    }
+
+                    const ragContext = selected.map((c: any, i: number) => `Chunk ${i + 1} (file: ${c.file_path ?? 'unknown'}): ${c.text}`).join('\n\n');
+                    console.log(`RAG returned ${chunks.length} chunks from ${ragUrl}, using ${selected.length} unique chunks (${chars} chars)`);
+                    return ragContext;
+                }
+
+                console.log(`RAG responded but returned 0 chunks from ${ragUrl}`);
+                return '';
+            } catch (err: any) {
+                console.warn(`RAG request to ${ragUrl} failed: ${err?.message || String(err)}`);
+            }
+        }
+
+        console.warn('All RAG endpoints tried and failed:', tried.join(', '));
+        return '';
+    }
+
     async createChat(userId: number, title = 'New Chat'): Promise<number> {
         const conversation = await this.prisma.chatbotConversation.create({
             data: {
@@ -52,7 +115,8 @@ export class GeminiService {
 
     async addMessageAndGetCompletion(
         chatId: number,
-        message: ChatCompletionMessageDto
+        message: ChatCompletionMessageDto,
+        assistantCategoryId?: number
     ): Promise<{ response: string | null }> {
         const conversation = await this.prisma.chatbotConversation.findFirst({
             where: { 
@@ -97,11 +161,19 @@ export class GeminiService {
             orderBy: { sent_at: 'asc' },
         });
 
+    // If an assistantCategoryId was provided, call RAG service to get relevant chunks
+    const ragContext = await this.fetchRagContext(message.content, assistantCategoryId);
+
         // Convert messages to Gemini format
         const geminiMessages = allMessages.map(msg => ({
             role: msg.sender_type === 'USER' ? 'user' : 'model',
             parts: [{ text: msg.message }]
         }));
+
+        // If we have ragContext, inject it as a system-like first message to guide Gemini
+        if (ragContext) {
+            geminiMessages.unshift({ role: 'system', parts: [{ text: `Use the following contextual chunks from the knowledge base to answer the user's question.\n\n${ragContext}` }] });
+        }
 
         try {
             const { data } = await axios.post(
@@ -133,7 +205,7 @@ export class GeminiService {
         }
     }
 
-    async regenerateLastResponse(chatId: number): Promise<{ response: string | null }> {
+    async regenerateLastResponse(chatId: number, assistantCategoryId?: number): Promise<{ response: string | null }> {
         const conversation = await this.prisma.chatbotConversation.findFirst({
             where: { 
                 id: chatId,
@@ -163,11 +235,18 @@ export class GeminiService {
             orderBy: { sent_at: 'asc' },
         });
 
+    // If an assistantCategoryId was provided, call RAG service to get relevant chunks
+    const ragContext = await this.fetchRagContext(allMessages.map(m => m.message).join('\n'), assistantCategoryId);
+
         // Convert messages to Gemini format
         const geminiMessages = allMessages.map(msg => ({
             role: msg.sender_type === 'USER' ? 'user' : 'model',
             parts: [{ text: msg.message }]
         }));
+
+        if (ragContext) {
+            geminiMessages.unshift({ role: 'system', parts: [{ text: `Use the following contextual chunks from the knowledge base to answer the user's question.\n\n${ragContext}` }] });
+        }
 
         try {
             const { data } = await axios.post(

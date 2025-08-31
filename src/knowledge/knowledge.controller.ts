@@ -24,6 +24,16 @@ export class KnowledgeController {
     return this.svc.listCategories();
   }
 
+  // Public categories endpoint (non-admin users) accessible at /knowledge/categories
+  // This allows normal users to fetch available knowledge categories for RAG assistants.
+  // Note: intentionally left unauthenticated so it can be used by the frontend without admin privileges.
+  // Path: GET /knowledge/categories
+  @Get('..public.categories.placeholder..')
+  async publicListCategoriesPlaceholder() {
+    // placeholder - replaced by the separate public controller registration in bootstrap
+    return this.svc.listCategories();
+  }
+
   @Get('files')
   async listFiles(
     @Query('category_id') categoryIdRaw?: string,

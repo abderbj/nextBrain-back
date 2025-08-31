@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Param, Patch, Get, Delete, HttpException, HttpStatus, Req, Res } from '@nestjs/common';
+import { Controller, Post, Body, Param, Patch, Get, Delete, HttpException, HttpStatus, Req, Res, Query } from '@nestjs/common';
 import { ChatCompetionMessageDto } from './dto/create-chat-completion.request';
 import { LlamaService, LlamaChatMetadata } from './llama.service';
 import { Auth } from '../common/decorators/auth.decorator';
@@ -37,14 +37,26 @@ export class LlamaController {
     @Post('chat/:chatId/message')
     async sendMessage(
         @Param('chatId') chatId: string,
-        @Body() message: ChatCompetionMessageDto
+        @Body() message: ChatCompetionMessageDto,
+        @Query('assistant') assistant?: string,
+        @Query('assistantCategoryId') assistantCategoryId?: string,
     ) {
         if (!message || typeof message.role !== 'string' || typeof message.content !== 'string' || !message.content.trim()) {
             throw new HttpException('Invalid message: role and content are required.', HttpStatus.BAD_REQUEST);
         }
 
         try {
-            return await this.llamaService.addMessageAndGetCompletion(parseInt(chatId), message);
+            // Only use RAG when the client explicitly requests a non-general assistant
+            let categoryId: number | undefined;
+            if (assistant === 'general') {
+                categoryId = undefined;
+            } else if (assistantCategoryId) {
+                categoryId = parseInt(assistantCategoryId);
+            } else {
+                categoryId = undefined;
+            }
+
+            return await this.llamaService.addMessageAndGetCompletion(parseInt(chatId), message, categoryId);
         } catch (e) {
             throw new HttpException(e.message, HttpStatus.NOT_FOUND);
         }
@@ -71,7 +83,19 @@ export class LlamaController {
             // res.setHeader('Access-Control-Allow-Origin', '*');
             // res.setHeader('Access-Control-Allow-Headers', 'Cache-Control');
 
-            await this.llamaService.addMessageAndGetCompletionStream(parseInt(chatId), message, res);
+            // Determine assistant selection from query params on the raw request
+            const assistant = req?.query?.assistant as string | undefined;
+            const assistantCategoryId = req?.query?.assistantCategoryId as string | undefined;
+            let categoryId: number | undefined;
+            if (assistant === 'general') {
+                categoryId = undefined;
+            } else if (assistantCategoryId) {
+                categoryId = parseInt(assistantCategoryId);
+            } else {
+                categoryId = undefined;
+            }
+
+            await this.llamaService.addMessageAndGetCompletionStream(parseInt(chatId), message, res, categoryId);
         } catch (e) {
             if (!res.headersSent) {
                 throw new HttpException(e.message, HttpStatus.INTERNAL_SERVER_ERROR);
@@ -81,9 +105,21 @@ export class LlamaController {
 
     @Auth()
     @Post('chat/:chatId/regenerate')
-    async regenerate(@Param('chatId') chatId: string) {
+    async regenerate(
+        @Param('chatId') chatId: string,
+        @Query('assistant') assistant?: string,
+        @Query('assistantCategoryId') assistantCategoryId?: string
+    ) {
         try {
-            return await this.llamaService.regenerateLastResponse(parseInt(chatId));
+            let categoryId: number | undefined;
+            if (assistant === 'general') {
+                categoryId = undefined;
+            } else if (assistantCategoryId) {
+                categoryId = parseInt(assistantCategoryId);
+            } else {
+                categoryId = undefined;
+            }
+            return await this.llamaService.regenerateLastResponse(parseInt(chatId), categoryId);
         } catch (e) {
             throw new HttpException(e.message, HttpStatus.NOT_FOUND);
         }

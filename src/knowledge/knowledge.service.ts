@@ -185,21 +185,81 @@ export class KnowledgeService {
     });
 
     // call rag-service to index the file
-    const ragUrl = this.config.get('RAG_SERVICE_URL') || 'http://rag-service:8001/ingest';
-    const ingestPath = this.config.get('UPLOAD_DIR')
-      ? `${this.config.get('UPLOAD_DIR')}/${file.filename}`
-      : `/uploads/${file.filename}`;
+    // Build an absolute path to the uploaded file so the RAG service can access it
+    const uploadDir = this.config.get('UPLOAD_DIR') || 'uploads';
+    const path = await import('path');
+    const fs = await import('fs');
+    const absolutePath = path.isAbsolute(uploadDir)
+      ? path.join(uploadDir, file.filename)
+      : path.join(process.cwd(), uploadDir, file.filename);
 
+    // Determine rag base and candidate hosts to try (helps in docker / host networking)
+    const configured = this.config.get('RAG_SERVICE_URL');
+    const normalized = typeof configured === 'string' && configured.trim() !== ''
+      ? configured.replace(/\/+$/g, '')
+      : '';
+
+    const candidates: string[] = [];
+    if (normalized) {
+      // allow either full ingest path or base URL
+      if (normalized.endsWith('/ingest')) candidates.push(normalized);
+      else candidates.push(`${normalized}/ingest`);
+    }
+
+    // Common host variants to try when running locally / in docker-compose
+    candidates.push('http://host.docker.internal:8001/ingest');
+    candidates.push('http://127.0.0.1:8001/ingest');
+    candidates.push('http://localhost:8001/ingest');
+    // internal service name used in compose networks
+    candidates.push('http://rag-service:8001/ingest');
+
+    // de-duplicate while preserving order
+    const seen = new Set<string>();
+    const uniqueCandidates = candidates.filter(u => {
+      if (seen.has(u)) return false;
+      seen.add(u);
+      return true;
+    });
+
+  // Build multipart/form-data payload with the uploaded file so RAG receives an UploadFile
+  const FormData = (await import('form-data')).default;
+
+    const form = new FormData();
     try {
-      const resp$ = this.httpService.post(ragUrl, {
-        file_id: created.id,
-        path: ingestPath,
-        category_id: categoryId,
-      });
-      await firstValueFrom(resp$);
-    } catch (err) {
-      // swallow or log — indexing can be retried
-      console.warn('RAG ingest failed:', err.message || err.toString());
+      if (!fs.existsSync(absolutePath)) {
+        console.warn('[KnowledgeService] Uploaded file not found on disk for RAG ingest:', absolutePath);
+      } else {
+        form.append('file', fs.createReadStream(absolutePath), { filename: file.originalname });
+        form.append('category_id', String(categoryId));
+        // include optional file_id for debugging/tracking
+        form.append('file_id', String(created.id));
+
+        let ingested = false;
+        for (const url of uniqueCandidates) {
+          try {
+            const headers = Object.assign({}, form.getHeaders());
+            // ensure cookies/auth are not leaked; use JSON timeout options for HttpService
+            const resp$ = this.httpService.post(url, form, { headers, timeout: 15000, maxContentLength: Infinity, maxBodyLength: Infinity });
+            const resp = await firstValueFrom(resp$);
+            console.log(`[KnowledgeService] RAG ingest succeeded using ${url}`, resp?.data ?? resp?.status ?? resp);
+            ingested = true;
+            break;
+          } catch (err) {
+            console.warn(`[KnowledgeService] RAG ingest attempt failed for ${url}:`, err?.message || err?.toString());
+            // try next candidate
+          }
+        }
+
+        if (!ingested) {
+          console.warn('[KnowledgeService] All RAG ingest attempts failed - file indexed later retries may be required', {
+            file: created.id,
+            path: absolutePath,
+            category_id: categoryId,
+          });
+        }
+      }
+    } catch (e) {
+      console.warn('[KnowledgeService] Error preparing file stream for RAG ingest:', e && (e as any).message ? (e as any).message : e);
     }
 
     return created;
