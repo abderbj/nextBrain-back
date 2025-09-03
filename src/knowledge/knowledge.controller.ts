@@ -64,6 +64,11 @@ export class KnowledgeController {
     return this.svc.listFiles({ categoryId, sort, direction, search, tags });
   }
 
+  @Get('files/by-category')
+  async listFilesByCategoryAdmin() {
+    return this.svc.listFilesByCategory();
+  }
+
   @Delete('categories/:id')
   async deleteCategory(@Param('id', ParseIntPipe) id: number) {
     return this.svc.deleteCategory(id);

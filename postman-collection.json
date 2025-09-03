@@ -1237,6 +1237,34 @@
                 "description": "Clear and recreate the vector database collection"
               }
             }
+            ,
+            {
+              "name": "List Indexed Files",
+              "request": {
+                "method": "GET",
+                "header": [ { "key": "Authorization", "value": "Bearer {{access_token}}" } ],
+                "url": {
+                  "raw": "{{RAG_SERVICE_URL}}/indexed/files",
+                  "host": ["{{RAG_SERVICE_URL}}"],
+                  "path": ["indexed","files"]
+                },
+                "description": "List files indexed in the vector DB with chunk counts and categories"
+              }
+            },
+            {
+              "name": "Check File Indexed",
+              "request": {
+                "method": "GET",
+                "header": [ { "key": "Authorization", "value": "Bearer {{access_token}}" } ],
+                "url": {
+                  "raw": "{{RAG_SERVICE_URL}}/indexed/files/check?file_path={{file_path}}",
+                  "host": ["{{RAG_SERVICE_URL}}"],
+                  "path": ["indexed","files","check"],
+                  "query": [ { "key": "file_path", "value": "{{file_path}}", "description": "Path to file to check" } ]
+                },
+                "description": "Check whether a specific file is indexed (returns true/false)"
+              }
+            }
           ]
         }
   ]
