@@ -160,6 +160,33 @@ export class KnowledgeService {
     return items;
   }
 
+  /**
+   * Return files grouped by category. Includes uncategorized files under category_id = null.
+   */
+  async listFilesByCategory() {
+    const db = this.prisma as any;
+
+    // Fetch categories
+    const cats = await db.category.findMany();
+
+    const categoriesOut: any[] = [];
+
+    for (const c of cats) {
+      const rows = await db.file.findMany({ where: { category_id: c.id }, orderBy: { id: 'desc' } });
+      const files = rows.map((r: any) => ({ id: String(r.id), name: r.name, url: r.path, size: Number(r.size ?? 0), uploadedAt: r.created_at ? new Date(r.created_at).toISOString() : null, lastModified: r.updated_at ? new Date(r.updated_at).toISOString() : null }));
+      categoriesOut.push({ category_id: c.id, category_name: c.name, file_count: files.length, files });
+    }
+
+    // Add uncategorized files (category_id is null)
+    const uncategorizedRows = await db.file.findMany({ where: { category_id: null }, orderBy: { id: 'desc' } });
+    if (uncategorizedRows && uncategorizedRows.length > 0) {
+      const files = uncategorizedRows.map((r: any) => ({ id: String(r.id), name: r.name, url: r.path, size: Number(r.size ?? 0), uploadedAt: r.created_at ? new Date(r.created_at).toISOString() : null, lastModified: r.updated_at ? new Date(r.updated_at).toISOString() : null }));
+      categoriesOut.push({ category_id: null, category_name: null, file_count: files.length, files });
+    }
+
+    return { total_categories: categoriesOut.length, categories: categoriesOut };
+  }
+
   async deleteCategory(id: number) {
   const db = this.prisma as any;
   return db.category.delete({ where: { id } });

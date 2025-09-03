@@ -9,4 +9,9 @@ export class PublicKnowledgeController {
   async listCategories() {
     return this.svc.listCategories();
   }
+
+  @Get('files/by-category')
+  async listFilesByCategoryPublic() {
+    return this.svc.listFilesByCategory();
+  }
 }
