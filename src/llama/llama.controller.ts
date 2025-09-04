@@ -17,8 +17,8 @@ export class LlamaController {
     // All chat endpoints require authentication
     @Auth()
     @Post('chat/create')
-    async createChat(@Req() req: RequestWithUser, @Body('title') title?: string) {
-        const chatId = await this.llamaService.createChat(req.user.id, title);
+    async createChat(@Req() req: RequestWithUser, @Body('title') title?: string, @Query('model') model?: string) {
+        const chatId = await this.llamaService.createChat(req.user.id, title, model);
         return { chatId };
     }
 
@@ -40,6 +40,7 @@ export class LlamaController {
         @Body() message: ChatCompetionMessageDto,
         @Query('assistant') assistant?: string,
         @Query('assistantCategoryId') assistantCategoryId?: string,
+        @Query('model') model?: string,
     ) {
         if (!message || typeof message.role !== 'string' || typeof message.content !== 'string' || !message.content.trim()) {
             throw new HttpException('Invalid message: role and content are required.', HttpStatus.BAD_REQUEST);
@@ -56,7 +57,7 @@ export class LlamaController {
                 categoryId = undefined;
             }
 
-            return await this.llamaService.addMessageAndGetCompletion(parseInt(chatId), message, categoryId);
+            return await this.llamaService.addMessageAndGetCompletion(parseInt(chatId), message, categoryId, model);
         } catch (e) {
             throw new HttpException(e.message, HttpStatus.NOT_FOUND);
         }
@@ -68,7 +69,8 @@ export class LlamaController {
         @Param('chatId') chatId: string,
         @Body() message: ChatCompetionMessageDto,
         @Req() req: any,
-        @Res() res: any
+        @Res() res: any,
+        @Query('model') model?: string,
     ) {
         if (!message || typeof message.role !== 'string' || typeof message.content !== 'string' || !message.content.trim()) {
             throw new HttpException('Invalid message: role and content are required.', HttpStatus.BAD_REQUEST);
@@ -95,7 +97,7 @@ export class LlamaController {
                 categoryId = undefined;
             }
 
-            await this.llamaService.addMessageAndGetCompletionStream(parseInt(chatId), message, res, categoryId);
+            await this.llamaService.addMessageAndGetCompletionStream(parseInt(chatId), message, res, categoryId, model);
         } catch (e) {
             if (!res.headersSent) {
                 throw new HttpException(e.message, HttpStatus.INTERNAL_SERVER_ERROR);
@@ -108,7 +110,8 @@ export class LlamaController {
     async regenerate(
         @Param('chatId') chatId: string,
         @Query('assistant') assistant?: string,
-        @Query('assistantCategoryId') assistantCategoryId?: string
+        @Query('assistantCategoryId') assistantCategoryId?: string,
+        @Query('model') model?: string,
     ) {
         try {
             let categoryId: number | undefined;
@@ -119,7 +122,7 @@ export class LlamaController {
             } else {
                 categoryId = undefined;
             }
-            return await this.llamaService.regenerateLastResponse(parseInt(chatId), categoryId);
+            return await this.llamaService.regenerateLastResponse(parseInt(chatId), categoryId, model);
         } catch (e) {
             throw new HttpException(e.message, HttpStatus.NOT_FOUND);
         }
