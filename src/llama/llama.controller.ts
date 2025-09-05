@@ -138,8 +138,8 @@ export class LlamaController {
 
     @Auth()
     @Get('chat')
-    async listChats(@Req() req: RequestWithUser) {
-        return await this.llamaService.listChats(req.user.id);
+    async listChats(@Req() req: RequestWithUser, @Query('model') model?: string) {
+        return await this.llamaService.listChats(req.user.id, model);
     }
 
     @Auth()

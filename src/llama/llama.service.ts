@@ -814,11 +814,27 @@ export class LlamaService {
         };
     }
 
-    async listChats(userId: number) {
+    async listChats(userId: number, requestedModel?: string) {
+        // Map requestedModel to specific ModelType for filtering
+        let modelTypeFilter: ModelType[] = [ModelType.LLAMA, ModelType.MISTRAL, ModelType.GEMMA, ModelType.DEEPSEEK];
+        
+        if (requestedModel) {
+            const r = requestedModel.toLowerCase();
+            if (r.includes('mistral')) {
+                modelTypeFilter = [ModelType.MISTRAL];
+            } else if (r.includes('gemma')) {
+                modelTypeFilter = [ModelType.GEMMA];
+            } else if (r.includes('deepseek')) {
+                modelTypeFilter = [ModelType.DEEPSEEK];
+            } else if (r.includes('llama')) {
+                modelTypeFilter = [ModelType.LLAMA];
+            }
+        }
+
         const conversations = await this.prisma.chatbotConversation.findMany({
             where: { 
                 user_id: userId,
-                model_type: { in: [ModelType.LLAMA, ModelType.MISTRAL, ModelType.GEMMA, ModelType.DEEPSEEK] }
+                model_type: { in: modelTypeFilter }
             },
             orderBy: { updated_at: 'desc' },
         });
