@@ -682,7 +682,7 @@ export class LlamaService {
         const conversation = await this.prisma.chatbotConversation.findFirst({
             where: { 
                 id: chatId,
-                model_type: ModelType.LLAMA
+                model_type: { in: [ModelType.LLAMA, ModelType.MISTRAL, ModelType.GEMMA, ModelType.DEEPSEEK] }
             },
         });
         if (!conversation) throw new Error('Llama chat not found');
@@ -789,7 +789,7 @@ export class LlamaService {
             where: { 
                 id: chatId,
                 user_id: userId,
-                model_type: ModelType.LLAMA
+                model_type: { in: [ModelType.LLAMA, ModelType.MISTRAL, ModelType.GEMMA, ModelType.DEEPSEEK] }
             },
             include: {
                 messages: {
