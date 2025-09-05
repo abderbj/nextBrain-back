@@ -3,6 +3,10 @@
     <p>Hello,</p>
     <p>You have been invited to join our platform. Please click the link below to accept your invitation and sign up:</p>
     <p><a href="{{invitationUrl}}">Accept Invitation</a></p>
+    {{#if tempPassword}}
+      <p>Your temporary password: <strong>{{tempPassword}}</strong></p>
+      <p>Please change this password on your first login.</p>
+    {{/if}}
     <p>If you did not expect this invitation, you can ignore this email.</p>
     <p>Thank you,<br/>The Team</p>
     <p style="font-size: 0.8em; color: #888;">&copy; {{currentYear}} NextBrain</p>

@@ -1,8 +1,9 @@
 import { Controller, UseGuards } from '@nestjs/common';
 import { Get, Query, Res, Request } from '@nestjs/common';
 import { Response } from 'express';
-import { Post, Body } from '@nestjs/common';
+import { Post, Body, BadRequestException } from '@nestjs/common';
 import { SendInvitationDto } from './dto/send-invitation.dto';
+import { CompleteRegistrationDto } from './dto/send-invitation.dto';
 import { InvitationResponseDto } from './dto/invitation-response.dto';
 import { InvitationsService } from './invitations.service';
 import { Auth } from 'src/common/decorators/auth.decorator';
@@ -27,6 +28,42 @@ export class InvitationsController {
   @Roles(Role.ADMIN)
   async resendInvitation(@Body() dto: SendInvitationDto) {
     return this.invitationService.resendInvitation(dto.email);
+  }
+
+  @Post('complete-registration')
+  async completeRegistration(
+    @Body() dto: CompleteRegistrationDto,
+    @Request() req: any,
+    @Query('invitationToken') invitationToken?: string,
+    @Query('token') tokenQuery?: string,
+  ) {
+    // Resolve token from multiple possible sources: request body, URL query params, or
+    // fall back to the authenticated user's pending invitation (if logged in).
+    let token = dto.token || invitationToken || tokenQuery;
+
+    if (!token) {
+      const userEmail = req.user?.email;
+      if (userEmail) {
+        const invitation = await this.invitationService.getInvitationByEmail(userEmail);
+        if (!invitation) {
+          throw new BadRequestException('No pending invitation found for current user');
+        }
+        token = invitation.token;
+      }
+    }
+
+    if (!token) {
+      // Give a more actionable message so callers know how to fix the request.
+      throw new BadRequestException(
+        'Invitation token missing and user not identified. Provide the invitation token in the request body as "token" or include it in the URL as ?invitationToken=...; or log in first so the server can resolve your pending invitation.',
+      );
+    }
+
+    return this.invitationService.completeRegistration(token, dto.password, {
+      username: dto.username,
+      fullName: dto.fullName,
+      profileImage: dto.profileImage,
+    });
   }
 
   @Get()
@@ -62,7 +99,7 @@ export class InvitationsController {
             <h1>✅ Invitation Accepted Successfully!</h1>
             <p>Email: ${invitation.email}</p>
             <p>Your invitation has been accepted. You can now register on the platform.</p>
-            <p><a href="http://10.9.21.110:8080" style="color:#4285f4;text-decoration:none;padding:10px 20px;background:#f0f0f0;border-radius:4px;">Go to Application</a></p>
+            <p><a href="http://10.9.21.110:8080/?invitationToken=${invitation.token}" style="color:#4285f4;text-decoration:none;padding:10px 20px;background:#f0f0f0;border-radius:4px;">Go to Application</a></p>
           </body>
         </html>
       `);
@@ -94,7 +131,7 @@ export class InvitationsController {
           <body style="font-family:sans-serif;text-align:center;padding:2rem;">
             <h1>✅ Invitation Accepted</h1>
             <p>Your invitation has been accepted. You can now register on the platform.</p>
-            <p><a href="http://10.9.21.110:8080" style="color:#4285f4;text-decoration:none;">Go to Application</a></p>
+            <p><a href="http://10.9.21.110:8080/?invitationToken=${bodyToken || queryToken || ''}" style="color:#4285f4;text-decoration:none;">Go to Application</a></p>
           </body>
         </html>
       `);

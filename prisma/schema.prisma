@@ -13,6 +13,7 @@ model User {
   email                 String                @unique @db.VarChar(255)
   password_hash         String
   full_name             String                @db.VarChar(100)
+  mustChangePassword    Boolean               @default(false) @map("mustchangepassword")
   profile_image         String?
   bio                   String?
   location              String?

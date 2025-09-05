@@ -312,6 +312,7 @@ export class UsersService {
       bio: true,
       location: true,
       is_verified: true,
+  mustChangePassword: true,
       verify_token_expires: true,
       reset_pass_expires: true,
       created_at: true,

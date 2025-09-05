@@ -1,3 +1,7 @@
+import { Roles } from './roles.decorator';
+import { RolesGuard } from './guards/roles.guard';
+import { Role } from '@prisma/client';
+import { UsersService } from 'src/users/users.service';
 import {
   Body,
   Get,
@@ -6,8 +10,8 @@ import {
   Req,
   Res,
   UnauthorizedException,
-  UseGuards,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LocalAuthGuard } from './guards/local-auth.guard';
@@ -33,7 +37,10 @@ import { ApiController } from 'src/common/decorators/custom-controller.decorator
 
 @ApiController('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly usersService: UsersService,
+  ) {}
 
   @Post('login')
   @HttpCode(200)
@@ -191,6 +198,7 @@ async verifyEmailWithLink(@Query('token') token: string, @Res() res: Response) {
   getCurrentUser(@Req() req: Request) {
     return req.user;
   }
+  
 
   @Post('logout')
   @HttpCode(200)

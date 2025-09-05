@@ -136,7 +136,7 @@ export class EmailService {
     }
   }
 
-  async sendInvitationEmail(email: string, token: string): Promise<void> {
+  async sendInvitationEmail(email: string, token: string, tempPassword?: string): Promise<void> {
     if (!this.isConfigured) {
       console.warn('⚠️ Email service not configured. Skipping invitation email.');
       console.warn('To enable email functionality, please configure the following environment variables:');
@@ -153,6 +153,7 @@ export class EmailService {
     const html = this.compileTemplate('invitation', {
       invitationUrl,
       token,
+      tempPassword,
     });
     
     try {

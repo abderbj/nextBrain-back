@@ -33,14 +33,21 @@ export class AuthService {
     password: string,
   ): Promise<Omit<User, 'password_hash'> | null> {
     try {
-      const user = await this.usersService.findByCredentials(username);
+      // Defensive: normalize inputs to avoid accidental whitespace mismatches
+      const credential = typeof username === 'string' ? username.trim() : username;
+      const providedPassword = typeof password === 'string' ? password.trim() : password;
+
+      const user = await this.usersService.findByCredentials(credential);
       if (!user) {
         return null;
       }
       const isPasswordValid = await this.hashService.comparePassword(
-        password,
+        providedPassword,
         user.password_hash,
       );
+
+      // DEBUG: log compare outcome (do not log plaintext password)
+      console.log(`[AUTH DEBUG] login attempt for ${credential} - password length=${typeof providedPassword === 'string' ? providedPassword.length : 'N/A'} - match=${isPasswordValid}`);
 
       if (!isPasswordValid) {
         throw new ForbiddenException('Invalid credentials');
@@ -87,6 +94,8 @@ export class AuthService {
         loginDto.username,
         res,
       );
+
+  // last_login removed per request
 
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { refresh_token, refresh_token_expires, ...userResponse } = user!;

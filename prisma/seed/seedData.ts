@@ -195,26 +195,7 @@ const generateMessages = (conversationIds: number[]) => {
 };
 
 const generateInvitations = () => {
-  const invitations = [
-    {
-      email: 'pending1@example.com',
-      token: 'token_' + Math.random().toString(36).substring(2, 15),
-      expiresAt: new Date(Date.now() + (7 * 24 * 60 * 60 * 1000)), // 7 days from now
-      accepted: false,
-    },
-    {
-      email: 'pending2@example.com',
-      token: 'token_' + Math.random().toString(36).substring(2, 15),
-      expiresAt: new Date(Date.now() + (5 * 24 * 60 * 60 * 1000)), // 5 days from now
-      accepted: false,
-    },
-    {
-      email: 'expired@example.com',
-      token: 'token_' + Math.random().toString(36).substring(2, 15),
-      expiresAt: new Date(Date.now() - (2 * 24 * 60 * 60 * 1000)), // 2 days ago (expired)
-      accepted: false,
-    }
-  ];
+  const invitations = [];
 
   return invitations;
 };
