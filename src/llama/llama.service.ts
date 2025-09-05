@@ -30,10 +30,11 @@ export class LlamaService {
         private readonly prisma: PrismaService,
         private readonly configService: ConfigService,
     ) {
-        this.baseUrl = this.configService.get<string>('LLAMA_API_URL') || 'http://10.9.21.110:11434/api/chat';
-        // Determine model: prefer explicit env override, then detect from docker-compose files, then default
-        this.model = this.configService.get<string>('LLAMA_MODEL') || this.detectModelFromCompose() || 'llama3.2';
-        console.log('Llama service initialized with URL:', this.baseUrl, 'model:', this.model);
+    this.baseUrl = this.configService.get<string>('LLAMA_API_URL') || 'http://10.9.21.110:11434/api/chat';
+    // Determine model: prefer explicit env override, then detect from docker-compose files, then default to a real local model
+    // Supported local model names include: 'mistral:7b', 'gemma:7b', 'deepseek-coder:6.7b' (client may pass any of these in the ?model= query)
+    this.model = this.configService.get<string>('LLAMA_MODEL') || this.detectModelFromCompose() || 'mistral:7b';
+    console.log('LLM gateway initialized with URL:', this.baseUrl, 'default model:', this.model);
     }
 
     private detectModelFromCompose(): string | null {
@@ -48,7 +49,20 @@ export class LlamaService {
                 if (!existsSync(filePath)) continue;
                 const content = readFileSync(filePath, 'utf8');
 
-                // Look for known model strings
+                // Look for known model strings and map them to the real Ollama tag names we use
+                if (/mistral[:\/]?7b/i.test(content) || /mistral/i.test(content)) {
+                    return 'mistral:7b';
+                }
+
+                if (/gemma[:\/]?7b/i.test(content) || /gemma/i.test(content)) {
+                    return 'gemma:7b';
+                }
+
+                if (/deepseek[:\-]?coder[:\/]?6\.7b/i.test(content) || /deepseek/i.test(content)) {
+                    return 'deepseek-coder:6.7b';
+                }
+
+                // Fallback: keep older llama detection for compatibility
                 if (/steamdj\/llama3\.1(-cpu-only)?/i.test(content) || /steamdj\/llama3\.1-cpu-only/i.test(content)) {
                     return 'steamdj/llama3.1-cpu-only:latest';
                 }
@@ -87,6 +101,33 @@ export class LlamaService {
         } catch (e) {
             // If we can't fetch tags, don't change model
             return false;
+        }
+    }
+
+    // Check whether a specific model name is available on Ollama
+    private async isModelAvailableOnOllama(name: string): Promise<boolean> {
+        try {
+            const modelsUrl = this.baseUrl.replace('/api/chat', '/api/tags');
+            const modelsResponse = await axios.get(modelsUrl, { timeout: 5000 });
+            const models = modelsResponse.data.models || modelsResponse.data || [];
+            const names: string[] = models.map((m: any) => (m && m.name) ? m.name : String(m));
+            return Boolean(names.find(n => n.includes(name) || n === name));
+        } catch (e) {
+            return false;
+        }
+    }
+
+    // Ensure that the requested model is available; if not, try to fallback using existing logic.
+    // Returns the model name that should be used (either the requested one, or this.model after fallback)
+    private async ensureModelAvailableFor(requestedModel: string): Promise<string> {
+        try {
+            if (await this.isModelAvailableOnOllama(requestedModel)) return requestedModel;
+
+            // Requested model not found; try to let ensureModelAvailable pick a fallback (it mutates this.model)
+            await this.ensureModelAvailable();
+            return this.model;
+        } catch (e) {
+            return this.model;
         }
     }
 
@@ -160,22 +201,35 @@ export class LlamaService {
         return '';
     }
 
-    async createChat(userId: number, title = 'New Chat'): Promise<number> {
+    async createChat(userId: number, title = 'New Chat', requestedModel?: string): Promise<number> {
+        // Map requestedModel string to ModelType enum where possible
+    let modelType: ModelType = ModelType.LLAMA;
+        if (requestedModel) {
+            const r = requestedModel.toLowerCase();
+            if (r.includes('gemini')) modelType = ModelType.GEMINI;
+            else if (r.includes('mistral')) modelType = ModelType.MISTRAL;
+            else if (r.includes('gemma')) modelType = ModelType.GEMMA;
+            else if (r.includes('deepseek')) modelType = ModelType.DEEPSEEK;
+            else modelType = ModelType.LLAMA;
+        }
+
         const conversation = await this.prisma.chatbotConversation.create({
             data: {
                 title,
                 user_id: userId,
-                model_type: ModelType.LLAMA,
+                model_type: modelType,
             },
         });
         return conversation.id;
     }
 
+    // Model selection is provided per-request via query param; conversations keep ModelType only
+
     async updateChatTitle(chatId: number, title: string) {
         const conversation = await this.prisma.chatbotConversation.findFirst({
             where: { 
                 id: chatId,
-                model_type: ModelType.LLAMA
+                model_type: { in: [ModelType.LLAMA, ModelType.MISTRAL, ModelType.GEMMA, ModelType.DEEPSEEK] }
             },
         });
         if (!conversation) throw new Error('Llama chat not found');
@@ -189,12 +243,13 @@ export class LlamaService {
     async addMessageAndGetCompletion(
         chatId: number,
         message: ChatCompetionMessageDto,
-        assistantCategoryId?: number
+        assistantCategoryId?: number,
+        requestedModel?: string,
     ): Promise<{ response: string | null }> {
     const conversation = await this.prisma.chatbotConversation.findFirst({
             where: { 
                 id: chatId,
-                model_type: ModelType.LLAMA
+                model_type: { in: [ModelType.LLAMA, ModelType.MISTRAL, ModelType.GEMMA, ModelType.DEEPSEEK] }
             },
             include: {
                 messages: {
@@ -257,6 +312,14 @@ export class LlamaService {
             llamaMessages.unshift({ role: 'system', content: `Use the following contextual chunks from the knowledge base to answer the user's question:\n\n${ragContext}` });
         }
 
+        // Determine the model to use: prefer requestedModel (query param), then configured env model, then service default
+    const modelToUse = requestedModel || this.configService.get<string>('LLAMA_MODEL') || this.model;
+
+        // If client requested Gemini, instruct to use the Gemini endpoint (keep services independent)
+        if (typeof modelToUse === 'string' && modelToUse.toLowerCase().includes('gemini')) {
+            throw new Error('Requested model is Gemini — call the /gemini endpoints instead of /llama to use Gemini.');
+        }
+
         // Prepare request headers
         const headers: Record<string, string> = {
             'Content-Type': 'application/json',
@@ -264,18 +327,19 @@ export class LlamaService {
 
         try {
             console.log('Sending request to Llama API:', this.baseUrl);
-            console.log('Request payload:', {
-                model: this.model,
+            console.log('Using model:', modelToUse);
+            console.log('Request payload sample:', {
+                model: modelToUse,
                 messages: llamaMessages,
                 stream: false,
             });
 
-            // Ensure model availability and possibly fallback before request
-            await this.ensureModelAvailable();
+            // Ensure requested model is available or get a fallback model
+            const finalModel = await this.ensureModelAvailableFor(modelToUse);
 
-            // Send all messages to Llama
+            // Send all messages to Llama using the final model
             const response = await axios.post(this.baseUrl, {
-                model: this.model,
+                model: finalModel,
                 messages: llamaMessages,
                 stream: false,
             }, {
@@ -348,12 +412,13 @@ export class LlamaService {
         chatId: number,
         message: ChatCompetionMessageDto,
         res: any,
-        assistantCategoryId?: number
+        assistantCategoryId?: number,
+        requestedModel?: string,
     ): Promise<void> {
         const conversation = await this.prisma.chatbotConversation.findFirst({
             where: { 
                 id: chatId,
-                model_type: ModelType.LLAMA
+                model_type: { in: [ModelType.LLAMA, ModelType.MISTRAL, ModelType.GEMMA, ModelType.DEEPSEEK] }
             },
             include: {
                 messages: {
@@ -424,15 +489,25 @@ export class LlamaService {
         };
         let response: any;
 
+    // Determine model for streaming requests (prefer requestedModel)
+    const modelToUseStream = requestedModel || this.configService.get<string>('LLAMA_MODEL') || this.model;
+
         try {
             console.log('Sending streaming request to Llama API:', this.baseUrl);
+            console.log('Using model for stream:', modelToUseStream);
 
-            // Ensure model availability and possibly fallback before request
-            await this.ensureModelAvailable();
+            // If requested model is Gemini, instruct caller to use Gemini endpoints (service separation)
+            if (typeof modelToUseStream === 'string' && modelToUseStream.toLowerCase().includes('gemini')) {
+                res.status(400).json({ error: 'Requested model is Gemini — use /gemini endpoints for Gemini models' });
+                return;
+            }
+
+            // Ensure requested model is available or get a fallback
+            const finalModelForStream = await this.ensureModelAvailableFor(modelToUseStream);
 
             // Send streaming request to Llama
             response = await axios.post(this.baseUrl, {
-                model: this.model,
+                model: finalModelForStream,
                 messages: llamaMessages,
                 stream: true,
             }, {
@@ -530,11 +605,12 @@ export class LlamaService {
             // If Ollama indicates the model is not found, try to fallback to llama3.2 once and retry
             const respData: any = error.response?.data;
             if (error.response?.status === 404 && respData && typeof respData.error === 'string' && respData.error.includes('model')) {
-                const didFallback = await this.ensureModelAvailable();
-                if (didFallback) {
+                // Try to ensure the requested model or fallback before retry
+                const fallbackModel = await this.ensureModelAvailableFor(modelToUseStream);
+                if (fallbackModel) {
                     try {
                         response = await axios.post(this.baseUrl, {
-                            model: this.model,
+                            model: fallbackModel,
                             messages: llamaMessages,
                             stream: true,
                         }, { timeout: 0, responseType: 'stream', headers });
@@ -602,11 +678,11 @@ export class LlamaService {
     }
 
     // Regenerate last assistant response
-    async regenerateLastResponse(chatId: number, assistantCategoryId?: number): Promise<{ response: string | null }> {
+    async regenerateLastResponse(chatId: number, assistantCategoryId?: number, requestedModel?: string): Promise<{ response: string | null }> {
         const conversation = await this.prisma.chatbotConversation.findFirst({
             where: { 
                 id: chatId,
-                model_type: ModelType.LLAMA
+                model_type: { in: [ModelType.LLAMA, ModelType.MISTRAL, ModelType.GEMMA, ModelType.DEEPSEEK] }
             },
         });
         if (!conversation) throw new Error('Llama chat not found');
@@ -656,12 +732,22 @@ export class LlamaService {
 
         try {
             console.log('Regenerating response - sending request to Llama API:', this.baseUrl);
+            // Determine requested model (query param) and ensure availability
+            const modelToUse = requestedModel || this.configService.get<string>('LLAMA_MODEL') || this.model;
+
+            // If client wants Gemini, instruct them to call the Gemini endpoints
+            if (typeof modelToUse === 'string' && modelToUse.toLowerCase().includes('gemini')) {
+                throw new Error('Requested model is Gemini — call the /gemini endpoints to regenerate Gemini responses.');
+            }
+
+            const finalModel = await this.ensureModelAvailableFor(modelToUse);
+
             // Re-send to Llama
             const headers: Record<string, string> = {
                 'Content-Type': 'application/json',
             };
             const response = await axios.post(this.baseUrl, {
-                model: 'steamdj/llama3.1-cpu-only:latest',
+                model: finalModel,
                 messages: llamaMessages,
                 stream: false,
             }, {
@@ -703,7 +789,7 @@ export class LlamaService {
             where: { 
                 id: chatId,
                 user_id: userId,
-                model_type: ModelType.LLAMA
+                model_type: { in: [ModelType.LLAMA, ModelType.MISTRAL, ModelType.GEMMA, ModelType.DEEPSEEK] }
             },
             include: {
                 messages: {
@@ -728,11 +814,27 @@ export class LlamaService {
         };
     }
 
-    async listChats(userId: number) {
+    async listChats(userId: number, requestedModel?: string) {
+        // Map requestedModel to specific ModelType for filtering
+        let modelTypeFilter: ModelType[] = [ModelType.LLAMA, ModelType.MISTRAL, ModelType.GEMMA, ModelType.DEEPSEEK];
+        
+        if (requestedModel) {
+            const r = requestedModel.toLowerCase();
+            if (r.includes('mistral')) {
+                modelTypeFilter = [ModelType.MISTRAL];
+            } else if (r.includes('gemma')) {
+                modelTypeFilter = [ModelType.GEMMA];
+            } else if (r.includes('deepseek')) {
+                modelTypeFilter = [ModelType.DEEPSEEK];
+            } else if (r.includes('llama')) {
+                modelTypeFilter = [ModelType.LLAMA];
+            }
+        }
+
         const conversations = await this.prisma.chatbotConversation.findMany({
             where: { 
                 user_id: userId,
-                model_type: ModelType.LLAMA
+                model_type: { in: modelTypeFilter }
             },
             orderBy: { updated_at: 'desc' },
         });
@@ -750,7 +852,7 @@ export class LlamaService {
             where: { 
                 id: chatId,
                 user_id: userId,
-                model_type: ModelType.LLAMA,
+                model_type: { in: [ModelType.LLAMA, ModelType.MISTRAL, ModelType.GEMMA, ModelType.DEEPSEEK] }
             },
         });
         
@@ -774,7 +876,7 @@ export class LlamaService {
         const conversations = await this.prisma.chatbotConversation.findMany({
             where: { 
                 user_id: userId,
-                model_type: ModelType.LLAMA
+                model_type: { in: [ModelType.LLAMA, ModelType.MISTRAL, ModelType.GEMMA, ModelType.DEEPSEEK] }
             },
             select: { id: true },
         });
@@ -792,7 +894,7 @@ export class LlamaService {
             await this.prisma.chatbotConversation.deleteMany({
                 where: { 
                     user_id: userId,
-                    model_type: ModelType.LLAMA
+                    model_type: { in: [ModelType.LLAMA, ModelType.MISTRAL, ModelType.GEMMA, ModelType.DEEPSEEK] }
                 },
             });
         }

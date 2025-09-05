@@ -89,6 +89,9 @@ enum SenderType {
 enum ModelType {
   GEMINI
   LLAMA
+  MISTRAL
+  GEMMA
+  DEEPSEEK
 }
 
 model Category {
