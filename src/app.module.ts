@@ -18,6 +18,7 @@ import { join } from 'path';
 import { FileUploadModule } from './file-upload/file-upload.module';
 import { InvitationsModule } from './invitations/invitations.module';
 import { KnowledgeModule } from './knowledge/knowledge.module';
+import { AdminModule } from './admin/admin.module';
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { KnowledgeModule } from './knowledge/knowledge.module';
     GeminiModule,
     FileUploadModule,
     InvitationsModule,
+  AdminModule,
   KnowledgeModule,
   ],
   controllers: [AppController],

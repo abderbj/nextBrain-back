@@ -132,6 +132,14 @@ export class UsersController {
     return this.usersService.updatePassword(req.user.id, updatePasswordDto);
   }
 
+  @Patch('password/first-time')
+  @ApiOperation({ summary: 'Update user password on first login (no current password required)' })
+  @ApiResponse({ status: 200, description: 'Password updated successfully for first-time change' })
+  @ApiBody({ schema: { type: 'object', properties: { newPassword: { type: 'string' } } } })
+  updatePasswordFirstTime(@Req() req: RequestWithUser, @Body() body: { newPassword: string }) {
+    return this.usersService.updatePasswordFirstTime(req.user.id, body.newPassword);
+  }
+
   @Patch('account')
   @ApiOperation({ summary: 'Update user account type' })
   @ApiResponse({

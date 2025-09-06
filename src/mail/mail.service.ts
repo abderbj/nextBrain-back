@@ -148,12 +148,15 @@ export class EmailService {
       return;
     }
 
-    const backendUrl = this.configService.get<string>('BACKEND_URL');
-    const invitationUrl = `${backendUrl}/api/invitations/accept-invitation?token=${token}`;
+    // For the simplified flow, point users to the frontend login page and include the
+    // temporary password in the email. The invitation token is no longer required
+    // for the user to complete registration.
+    const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:8080';
+    const loginUrl = `${frontendUrl}/login`;
     const html = this.compileTemplate('invitation', {
-      invitationUrl,
-      token,
+      loginUrl,
       tempPassword,
+      email,
     });
     
     try {
@@ -169,4 +172,50 @@ export class EmailService {
       throw new Error('Failed to send invitation email');
     }
   }
+
+  // Generic mail method to send arbitrary messages/attachments
+  async sendRawMail(opts: {
+    to: string | string[];
+    subject: string;
+    text?: string;
+    html?: string;
+    attachments?: Array<{ filename: string; path?: string; content?: string | Buffer }>;
+  }): Promise<{ info: any; preview: string | null }> {
+    // Ensure transporter exists; if not configured, fall back to ethereal test account
+    if (!this.transporter) {
+      try {
+        const testAccount = await nodemailer.createTestAccount();
+        this.transporter = nodemailer.createTransport({
+          host: testAccount.smtp.host,
+          port: testAccount.smtp.port,
+          secure: testAccount.smtp.secure,
+          auth: { user: testAccount.user, pass: testAccount.pass },
+        });
+        console.warn('EmailService: transporter not configured; using ethereal test account for sendRawMail');
+      } catch (err) {
+        console.error('EmailService: failed to create ethereal transporter', err);
+        throw new Error('Email service is not available');
+      }
+    }
+
+    const from = `${this.configService.get<string>('MAIL_FROM_NAME') || ''} <${this.configService.get<string>('MAIL_FROM') || this.configService.get<string>('SMTP_USER') || 'no-reply@example.com'}>`;
+
+    const info = await this.transporter.sendMail({
+      from,
+      to: opts.to,
+      subject: opts.subject,
+      text: opts.text,
+      html: opts.html,
+      attachments: opts.attachments as any,
+    });
+
+    const preview = nodemailer.getTestMessageUrl(info) || null;
+    return { info, preview };
+  }
+}
+
+export interface MailAttachment {
+  filename: string;
+  path?: string;
+  content?: string | Buffer;
 }

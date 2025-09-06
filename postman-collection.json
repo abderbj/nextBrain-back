@@ -106,6 +106,93 @@
       ]
     },
     {
+      "name": "Admin",
+      "item": [
+        {
+          "name": "Get Overview",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/overview",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "overview"]
+            },
+            "description": "Get admin overview stats (totalUsers, activeProjects, systemUptime, securityAlerts)"
+          }
+        },
+        {
+          "name": "Get Recent Activities",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/activities",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "activities"]
+            },
+            "description": "Fetch recent system activities for admin overview"
+          }
+        }
+        ,
+        {
+          "name": "Get System Health",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/system-health",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "system-health"]
+            },
+            "description": "Get database/container status and server disk/memory usage"
+          }
+        }
+        ,
+        {
+          "name": "Backup Database",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{backup_email}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/backup",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "backup"]
+            },
+            "description": "Export all public DB tables as CSV and email them to the provided address"
+          }
+        }
+      ]
+    },
+    {
       "name": "Authentication",
       "item": [
         {

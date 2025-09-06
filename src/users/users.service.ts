@@ -129,6 +129,25 @@ export class UsersService {
     return { message: 'Password updated successfully' };
   }
 
+  async updatePasswordFirstTime(userId: number, newPassword: string) {
+    // Allow changing password on first login without requiring the current password.
+    const user = await this.findBy({ id: userId }, { password_hash: true, mustChangePassword: true });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Hash new password
+    const password_hash = await this.hashService.hashPassword(newPassword);
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { password_hash, mustChangePassword: false },
+      select: this.userSafeFields,
+    });
+
+    return { message: 'Password updated successfully' };
+  }
+
   async updateAccountType(
     userId: number,
     updateAccountType: UpdateAccountType,
