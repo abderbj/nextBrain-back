@@ -84,22 +84,37 @@ export class LlamaService {
             const modelsResponse = await axios.get(modelsUrl, { timeout: 5000 });
             const models = modelsResponse.data.models || modelsResponse.data || [];
 
-            const names: string[] = models.map((m: any) => (m && m.name) ? m.name : String(m));
+            const names: string[] = models.map((m: any) => (m && typeof m === 'object' && m.name) ? m.name : (typeof m === 'string' ? m : String(m))).filter(name => name && name !== '[object Object]');
 
             // If current model present, nothing to do
-            if (names.find(n => n.includes(this.model))) return false;
+            if (names.find(n => n && n.includes && n.includes(this.model))) return false;
 
             // Prefer llama3.2 if available
-            const found32 = names.find(n => /llama3\.2/i.test(n));
+            const found32 = names.find(n => n && /llama3\.2/i.test(n));
             if (found32) {
                 console.warn(`Model ${this.model} not found on Ollama; falling back to ${found32}`);
                 this.model = found32.includes(':') ? found32 : 'llama3.2';
                 return true;
             }
 
+            // If no llama3.2 found, try to find any available model
+            if (names.length > 0) {
+                const firstAvailable = names[0];
+                if (firstAvailable && firstAvailable !== this.model) {
+                    console.warn(`Model ${this.model} not found on Ollama; falling back to ${firstAvailable}`);
+                    this.model = firstAvailable;
+                    return true;
+                }
+            }
+
             return false;
         } catch (e) {
-            // If we can't fetch tags, don't change model
+            console.warn('Failed to check model availability, keeping current model:', this.model);
+            // If we can't fetch tags, don't change model but ensure we have a valid default
+            if (!this.model || this.model === 'llama') {
+                this.model = 'mistral:7b';
+                return true;
+            }
             return false;
         }
     }
@@ -121,13 +136,21 @@ export class LlamaService {
     // Returns the model name that should be used (either the requested one, or this.model after fallback)
     private async ensureModelAvailableFor(requestedModel: string): Promise<string> {
         try {
+            // Handle invalid model names
+            if (!requestedModel || requestedModel === 'llama' || requestedModel.trim() === '') {
+                console.warn(`Invalid model name '${requestedModel}', using default model`);
+                return this.model;
+            }
+
             if (await this.isModelAvailableOnOllama(requestedModel)) return requestedModel;
 
             // Requested model not found; try to let ensureModelAvailable pick a fallback (it mutates this.model)
             await this.ensureModelAvailable();
             return this.model;
         } catch (e) {
-            return this.model;
+            console.warn(`Error checking model availability for '${requestedModel}':`, e.message);
+            // Return a safe default
+            return this.model || 'mistral:7b';
         }
     }
 
