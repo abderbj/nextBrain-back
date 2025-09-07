@@ -24,24 +24,35 @@ export class GeminiService {
 
     constructor(private readonly prisma: PrismaService) {}
 
-    // Try multiple RAG service base URLs (configured one, then host.docker.internal, 127.0.0.1, localhost)
+    // Enhanced model type check for Gemini chat operations
+    private isGeminiChat(conversation: any): boolean {
+        return conversation?.model_type === ModelType.GEMINI;
+    }
+
+    private getModelTypeForGemini(): ModelType {
+        // For future expansion if multiple Gemini models are supported
+        return ModelType.GEMINI;
+    }
+
+    // Try multiple RAG service base URLs with enhanced error handling and chunk processing
     private async fetchRagContext(question: string, assistantCategoryId?: number): Promise<string> {
         if (!assistantCategoryId) return '';
 
         const tried: string[] = [];
         const bases = [] as string[];
-        if (process.env.RAG_SERVICE_URL) bases.push(process.env.RAG_SERVICE_URL as string);
+        if (process.env.RAG_SERVICE_URL) bases.push(process.env.RAG_SERVICE_URL);
         bases.push('http://host.docker.internal:8001');
         bases.push('http://127.0.0.1:8001');
         bases.push('http://localhost:8001');
 
+        // Deduplicate while preserving order
         const uniqueBases = Array.from(new Set(bases.map(b => b.replace(/\/$/, ''))));
 
         for (const base of uniqueBases) {
             const ragUrl = base.endsWith('/query') ? base : `${base}/query`;
             tried.push(ragUrl);
             try {
-                console.log(`Trying RAG URL: ${ragUrl}`);
+                console.log(`[Gemini RAG] Trying URL: ${ragUrl}`);
                 const { data } = await axios.post(ragUrl, {
                     question,
                     limit: 5,
@@ -49,6 +60,7 @@ export class GeminiService {
                 }, { timeout: 3000 });
 
                 if (data && Array.isArray(data.source_chunks) && data.source_chunks.length > 0) {
+                    // Deduplicate by chunk_id (or fallback to text) and limit total size
                     const chunks = data.source_chunks as Array<any>;
                     const uniqueMap = new Map<string | number, any>();
                     for (const c of chunks) {
@@ -57,8 +69,8 @@ export class GeminiService {
                     }
                     const uniqueChunks = Array.from(uniqueMap.values());
 
-                    const MAX_CHUNKS = 5;
-                    const MAX_CHARS = 4000;
+                    const MAX_CHUNKS = 5; // take top-N chunks
+                    const MAX_CHARS = 4000; // cap combined characters (Gemini context limit)
 
                     const selected: any[] = [];
                     let chars = 0;
@@ -71,19 +83,24 @@ export class GeminiService {
                         chars += text.length;
                     }
 
-                    const ragContext = selected.map((c: any, i: number) => `Chunk ${i + 1} (file: ${c.file_path ?? 'unknown'}): ${c.text}`).join('\n\n');
-                    console.log(`RAG returned ${chunks.length} chunks from ${ragUrl}, using ${selected.length} unique chunks (${chars} chars)`);
+                    const ragContext = selected.map((c: any, i: number) => 
+                        `Chunk ${i + 1} (file: ${c.file_path ?? 'unknown'}): ${c.text}`
+                    ).join('\n\n');
+
+                    console.log(`[Gemini RAG] Success: ${chunks.length} chunks from ${ragUrl}, using ${selected.length} unique chunks (${chars} chars)`);
                     return ragContext;
                 }
 
-                console.log(`RAG responded but returned 0 chunks from ${ragUrl}`);
+                console.log(`[Gemini RAG] Response received but no chunks from ${ragUrl}`);
                 return '';
             } catch (err: any) {
-                console.warn(`RAG request to ${ragUrl} failed: ${err?.message || String(err)}`);
+                const msg = err?.message || String(err);
+                console.warn(`[Gemini RAG] Request failed for ${ragUrl}: ${msg}`);
+                // continue to next candidate
             }
         }
 
-        console.warn('All RAG endpoints tried and failed:', tried.join(', '));
+        console.warn('[Gemini RAG] All endpoints failed:', tried.join(', '));
         return '';
     }
 
@@ -92,7 +109,7 @@ export class GeminiService {
             data: {
                 title,
                 user_id: userId,
-                model_type: ModelType.GEMINI,
+                model_type: this.getModelTypeForGemini(), // Use helper for consistency
             },
         });
         return conversation.id;
@@ -102,10 +119,12 @@ export class GeminiService {
         const conversation = await this.prisma.chatbotConversation.findFirst({
             where: { 
                 id: chatId,
-                model_type: ModelType.GEMINI
+                model_type: this.getModelTypeForGemini()
             },
         });
-        if (!conversation) throw new Error('Gemini chat not found');
+        if (!this.isGeminiChat(conversation)) {
+            throw new Error('Gemini chat not found');
+        }
         
         await this.prisma.chatbotConversation.update({
             where: { id: chatId },
@@ -118,10 +137,16 @@ export class GeminiService {
         message: ChatCompletionMessageDto,
         assistantCategoryId?: number
     ): Promise<{ response: string | null }> {
+        // Validate API key early
+        if (!this.apiKey) {
+            console.error('[Gemini] GEMINI_API_KEY is not set in environment');
+            throw new Error('GEMINI_API_KEY not set. Gemini service is unavailable.');
+        }
+
         const conversation = await this.prisma.chatbotConversation.findFirst({
             where: { 
                 id: chatId,
-                model_type: ModelType.GEMINI
+                model_type: this.getModelTypeForGemini()
             },
             include: {
                 messages: {
@@ -130,10 +155,13 @@ export class GeminiService {
             },
         });
         
-        if (!conversation) throw new Error('Gemini chat not found');
+        if (!this.isGeminiChat(conversation)) {
+            throw new Error('Gemini chat not found');
+        }
 
         // Set title from first user message if it's still "New Chat"
         if (
+            conversation && 
             conversation.messages.length === 0 &&
             message.role === 'user' &&
             conversation.title === 'New Chat'
@@ -221,13 +249,21 @@ export class GeminiService {
     }
 
     async regenerateLastResponse(chatId: number, assistantCategoryId?: number): Promise<{ response: string | null }> {
+        // Validate API key early
+        if (!this.apiKey) {
+            console.error('[Gemini] GEMINI_API_KEY is not set in environment');
+            throw new Error('GEMINI_API_KEY not set. Gemini service is unavailable.');
+        }
+
         const conversation = await this.prisma.chatbotConversation.findFirst({
             where: { 
                 id: chatId,
-                model_type: ModelType.GEMINI
+                model_type: this.getModelTypeForGemini()
             },
         });
-        if (!conversation) throw new Error('Gemini chat not found');
+        if (!this.isGeminiChat(conversation)) {
+            throw new Error('Gemini chat not found');
+        }
         
         // Remove last BOT message
         const lastBotMessage = await this.prisma.chatbotMessage.findFirst({
@@ -305,7 +341,7 @@ export class GeminiService {
             where: { 
                 id: chatId,
                 user_id: userId,
-                model_type: ModelType.GEMINI
+                model_type: this.getModelTypeForGemini()
             },
             include: {
                 messages: {
@@ -334,7 +370,7 @@ export class GeminiService {
         const conversations = await this.prisma.chatbotConversation.findMany({
             where: { 
                 user_id: userId,
-                model_type: ModelType.GEMINI
+                model_type: this.getModelTypeForGemini()
             },
             orderBy: { updated_at: 'desc' },
         });
@@ -347,16 +383,167 @@ export class GeminiService {
         }));
     }
 
+    async addMessageAndGetCompletionStream(
+        chatId: number,
+        message: ChatCompletionMessageDto,
+        res: any,
+        assistantCategoryId?: number,
+        model?: string,
+    ): Promise<void> {
+        // Validate API key early
+        if (!this.apiKey) {
+            console.error('[Gemini] GEMINI_API_KEY is not set in environment');
+            throw new Error('GEMINI_API_KEY not set. Gemini service is unavailable.');
+        }
+
+        const conversation = await this.prisma.chatbotConversation.findFirst({
+            where: { 
+                id: chatId,
+                model_type: this.getModelTypeForGemini()
+            },
+            include: {
+                messages: {
+                    orderBy: { sent_at: 'asc' },
+                },
+            },
+        });
+        
+        if (!this.isGeminiChat(conversation)) {
+            throw new Error('Gemini chat not found');
+        }
+
+        // Set title from first user message if it's still "New Chat"
+        if (
+            conversation &&
+            conversation.messages.length === 0 &&
+            message.role === 'user' &&
+            conversation.title === 'New Chat'
+        ) {
+            if (typeof message.content === 'string') {
+                await this.prisma.chatbotConversation.update({
+                    where: { id: chatId },
+                    data: { title: message.content.slice(0, 100) },
+                });
+            }
+        }
+
+        // Save user message to database
+        await this.prisma.chatbotMessage.create({
+            data: {
+                conversation_id: chatId,
+                sender_type: 'USER',
+                message: message.content,
+            },
+        });
+
+        // Get all messages for context
+        const allMessages = await this.prisma.chatbotMessage.findMany({
+            where: { conversation_id: chatId },
+            orderBy: { sent_at: 'asc' },
+        });
+
+        // Get RAG context if assistantCategoryId is provided
+        const ragContext = await this.fetchRagContext(message.content, assistantCategoryId);
+
+        // Convert messages to Gemini format
+        const geminiMessages = allMessages.map(msg => ({
+            role: msg.sender_type === 'USER' ? 'user' : 'model',
+            parts: [{ text: msg.message }]
+        }));
+
+        // If we have ragContext, inject it as a system-like first message
+        if (ragContext) {
+            geminiMessages.unshift({ role: 'system', parts: [{ text: `Use the following contextual chunks from the knowledge base to answer the user's question.\n\n${ragContext}` }] });
+        }
+
+        let accumulatedContent = '';
+
+        try {
+            console.debug('Sending streaming request to Gemini API', { 
+                url: this.baseUrl, 
+                keyPresent: !!this.apiKey 
+            });
+
+            // The Gemini API doesn't support direct streaming, so we'll simulate it
+            const response = await axios.post(
+                `${this.baseUrl}?key=${this.apiKey}`,
+                { 
+                    contents: geminiMessages
+                },
+                {
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                }
+            );
+
+            // Since Gemini API doesn't support native streaming, we'll simulate it by chunking the response
+            const responseText = response.data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+            if (responseText) {
+                if (!res.headersSent) {
+                    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+                    res.setHeader('Cache-Control', 'no-cache');
+                    res.setHeader('Connection', 'keep-alive');
+                    res.setHeader('Transfer-Encoding', 'chunked');
+                }
+
+                // Split response into larger chunks for more stable streaming
+                const chunkSize = 100; // Increased chunk size for better stability
+                const chunks: string[] = [];
+                for (let i = 0; i < responseText.length; i += chunkSize) {
+                    chunks.push(responseText.slice(i, i + chunkSize));
+                }
+
+                // Stream chunks with proper flushing and connection management
+                for (const chunk of chunks) {
+                    res.write(chunk);
+                    accumulatedContent += chunk;
+                    // Ensure chunk is sent immediately
+                    if (res.flush) res.flush();
+                    await new Promise(resolve => setTimeout(resolve, 20)); // Reduced delay for smoother streaming
+                }
+                
+                // Send an empty chunk to signal end of response
+                res.write('\n');
+                res.end();
+
+                // Save the complete response to database
+                await this.prisma.chatbotMessage.create({
+                    data: {
+                        conversation_id: chatId,
+                        sender_type: 'BOT',
+                        message: responseText,
+                    },
+                });
+            } else {
+                if (!res.headersSent) {
+                    res.status(500).json({ error: 'No response from Gemini' });
+                }
+            }
+
+        } catch (error: any) {
+            console.error('Gemini API streaming error:', {
+                status: error.response?.status,
+                data: error.response?.data,
+                message: error.message,
+            });
+
+            if (!res.headersSent) {
+                throw new Error(`Failed to get streaming response from Gemini: ${error.message}`);
+            }
+        }
+    }
+
     async deleteChat(chatId: number, userId: number): Promise<void> {
         const conversation = await this.prisma.chatbotConversation.findFirst({
             where: { 
                 id: chatId,
                 user_id: userId,
-                model_type: ModelType.GEMINI,
+                model_type: this.getModelTypeForGemini(),
             },
         });
         
-        if (!conversation) {
+        if (!this.isGeminiChat(conversation)) {
             throw new Error('Gemini chat not found or you do not have permission to delete it');
         }
 
@@ -376,7 +563,7 @@ export class GeminiService {
         const conversations = await this.prisma.chatbotConversation.findMany({
             where: { 
                 user_id: userId,
-                model_type: ModelType.GEMINI
+                model_type: this.getModelTypeForGemini()
             },
             select: { id: true },
         });
@@ -394,7 +581,7 @@ export class GeminiService {
             await this.prisma.chatbotConversation.deleteMany({
                 where: { 
                     user_id: userId,
-                    model_type: ModelType.GEMINI
+                    model_type: this.getModelTypeForGemini()
                 },
             });
         }

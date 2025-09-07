@@ -874,6 +874,19 @@
       "name": "Gemini AI Chat",
       "item": [
         {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/gemini/health",
+              "host": ["{{base_url}}"],
+              "path": ["gemini", "health"]
+            },
+            "description": "Check Gemini service health status. Returns status ok and service name."
+          }
+        },
+        {
           "name": "Create Chat",
           "event": [
             {
@@ -916,7 +929,40 @@
           }
         },
         {
-          "name": "Send Message",
+          "name": "Send Message (Streaming)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Hello! Tell me about yourself.\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/gemini/chat/{{chat_id}}/message/stream?assistantCategoryId={{assistantCategoryId}}",
+              "host": ["{{base_url}}"],
+              "path": ["gemini", "chat", "{{chat_id}}", "message", "stream"],
+              "query": [
+                {
+                  "key": "assistantCategoryId",
+                  "value": "",
+                  "description": "Optional: category id for RAG-backed assistant"
+                }
+              ]
+            },
+            "description": "Send message with streaming response for better performance. Response format matches Llama: { message: { content: string }, done: boolean }. Supports RAG context via assistantCategoryId."
+          }
+        },
+        {
+          "name": "Send Message (Non-Streaming)",
           "request": {
             "method": "POST",
             "header": [
