@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "NextBrain Backend API - Complete",
-    "description": "Complete API collection for NextBrain backend application with all endpoints\n\n## Test Flow:\n1. Send invitation to user email\n2. Check email for invitation link and token\n3. Accept invitation (GET to see form, POST to accept)\n4. Register with accepted invitation email\n5. Login with username/password\n6. Use Bearer token for authenticated endpoints\n\n## Working Test User:\n- Username: testuser\n- Email: gaithrouahi1730@gmail.com\n- Password: password123\n\n## Variables:\n- base_url: API base URL\n- access_token: JWT token from login\n- user_id: Current user ID\n- chat_id: Current chat ID\n- invitation_token: Token from invitation email",
+    "description": "Complete API collection for NextBrain backend application with all endpoints\n\n## AI Models Supported:\n- **Llama Service**: mistral:7b, gemma:7b, deepseek-coder:6.7b, llama3.2, steamdj/llama3.1-cpu-only\n- **Gemini Service**: gemini-2.0-flash\n\n## Test Flow:\n1. Send invitation to user email\n2. Check email for invitation link and token\n3. Accept invitation (GET to see form, POST to accept)\n4. Register with accepted invitation email\n5. Login with username/password\n6. Use Bearer token for authenticated endpoints\n\n## Working Test User:\n- Username: testuser\n- Email: gaithrouahi1730@gmail.com\n- Password: password123\n\n## Variables:\n- base_url: API base URL\n- access_token: JWT token from login\n- user_id: Current user ID\n- chat_id: Current chat ID\n- invitation_token: Token from invitation email\n- model: AI model selection for Llama requests\n- assistantCategoryId: Optional category ID for RAG-backed assistants",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "version": "3.0.0"
   },
@@ -65,6 +65,12 @@
       "value": "",
       "type": "string",
       "description": "Optional: category id for RAG-backed assistants"
+    },
+    {
+      "key": "model",
+      "value": "mistral:7b",
+      "type": "string",
+      "description": "AI model to use for Llama requests: 'mistral:7b', 'gemma:7b', 'deepseek-coder:6.7b', 'llama3.2'"
     },
     {
       "key": "RAG_SERVICE_URL",
@@ -249,7 +255,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"username\": \"testuser\",\n  \"password\": \"password123\"\n}"
+              "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"admin123\"\n}"
             },
             "url": {
               "raw": "{{base_url}}/auth/login",
@@ -613,7 +619,7 @@
               "host": ["{{base_url}}"],
               "path": ["llama", "health"]
             },
-            "description": "Check Ollama connection and model availability (no auth required)"
+            "description": "Check Ollama connection and model availability (no auth required). Returns status of available models including mistral:7b, gemma:7b, deepseek-coder:6.7b, llama3.2, etc."
           }
         },
         {
@@ -655,7 +661,7 @@
               "host": ["{{base_url}}"],
               "path": ["llama", "chat", "create"]
             },
-            "description": "Create a new Llama chat session"
+            "description": "Create a new Llama chat session. Supports multiple models: mistral:7b, gemma:7b, deepseek-coder:6.7b, llama3.2, etc."
           }
         },
         {
@@ -677,14 +683,14 @@
               "raw": "{\n  \"role\": \"user\",\n  \"content\": \"Hello! Tell me a short story about AI.\"\n}"
             },
                 "url": {
-                  "raw": "{{base_url}}/llama/chat/{{chat_id}}/message/stream?assistant={{assistant}}&assistantCategoryId={{assistantCategoryId}}",
+                  "raw": "{{base_url}}/llama/chat/{{chat_id}}/message/stream?model={{model}}&assistantCategoryId={{assistantCategoryId}}",
                   "host": ["{{base_url}}"],
                   "path": ["llama", "chat", "{{chat_id}}", "message", "stream"],
                   "query": [
                     {
-                      "key": "assistant",
-                      "value": "general",
-                      "description": "Which assistant to use: 'general' or 'category'"
+                      "key": "model",
+                      "value": "mistral:7b",
+                      "description": "Model to use: 'mistral:7b', 'gemma:7b', 'deepseek-coder:6.7b', 'llama3.2', or other available models"
                     },
                     {
                       "key": "assistantCategoryId",
@@ -693,7 +699,7 @@
                     }
                   ]
                 },
-            "description": "Send message with streaming response (recommended for better performance)"
+            "description": "Send message with streaming response (recommended for better performance). Supports model selection via query param."
           }
         },
         {
@@ -715,14 +721,14 @@
               "raw": "{\n  \"role\": \"user\",\n  \"content\": \"Hello! Can you tell me a short joke?\"\n}"
             },
                 "url": {
-                  "raw": "{{base_url}}/llama/chat/{{chat_id}}/message?assistant={{assistant}}&assistantCategoryId={{assistantCategoryId}}",
+                  "raw": "{{base_url}}/llama/chat/{{chat_id}}/message?model={{model}}&assistantCategoryId={{assistantCategoryId}}",
                   "host": ["{{base_url}}"],
                   "path": ["llama", "chat", "{{chat_id}}", "message"],
                   "query": [
                     {
-                      "key": "assistant",
-                      "value": "general",
-                      "description": "Which assistant to use: 'general' or 'category'"
+                      "key": "model",
+                      "value": "mistral:7b",
+                      "description": "Model to use: 'mistral:7b', 'gemma:7b', 'deepseek-coder:6.7b', 'llama3.2', or other available models"
                     },
                     {
                       "key": "assistantCategoryId",
@@ -731,7 +737,7 @@
                     }
                   ]
                 },
-            "description": "Send message with complete response (60s timeout)"
+            "description": "Send message with complete response (60s timeout). Supports model selection via query param."
           }
         },
         {
@@ -807,14 +813,14 @@
               }
             ],
             "url": {
-              "raw": "{{base_url}}/llama/chat/{{chat_id}}/regenerate?assistant={{assistant}}&assistantCategoryId={{assistantCategoryId}}",
+              "raw": "{{base_url}}/llama/chat/{{chat_id}}/regenerate?model={{model}}&assistantCategoryId={{assistantCategoryId}}",
               "host": ["{{base_url}}"],
               "path": ["llama", "chat", "{{chat_id}}", "regenerate"],
               "query": [
                 {
-                  "key": "assistant",
-                  "value": "general",
-                  "description": "Which assistant to use: 'general' or 'category'"
+                  "key": "model",
+                  "value": "mistral:7b",
+                  "description": "Model to use: 'mistral:7b', 'gemma:7b', 'deepseek-coder:6.7b', 'llama3.2', or other available models"
                 },
                 {
                   "key": "assistantCategoryId",
@@ -823,7 +829,7 @@
                 }
               ]
             },
-            "description": "Regenerate the last assistant response"
+            "description": "Regenerate the last assistant response. Supports model selection via query param."
           }
         },
         {
@@ -906,7 +912,7 @@
               "host": ["{{base_url}}"],
               "path": ["gemini", "chat", "create"]
             },
-            "description": "Create a new Gemini chat session"
+            "description": "Create a new Gemini chat session (uses Gemini 2.0 Flash model)"
           }
         },
         {
@@ -925,18 +931,13 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Hello! Can you help me with a coding question?\"\n    }\n  ]\n}"
+              "raw": "{\n  \"role\": \"user\",\n  \"content\": \"Hello! Can you help me with a coding question?\"\n}"
             },
             "url": {
-              "raw": "{{base_url}}/gemini/chat/{{chat_id}}/message?assistant={{assistant}}&assistantCategoryId={{assistantCategoryId}}",
+              "raw": "{{base_url}}/gemini/chat/{{chat_id}}/message?assistantCategoryId={{assistantCategoryId}}",
               "host": ["{{base_url}}"],
               "path": ["gemini", "chat", "{{chat_id}}", "message"],
               "query": [
-                {
-                  "key": "assistant",
-                  "value": "general",
-                  "description": "Which assistant to use: 'general' or 'category'"
-                },
                 {
                   "key": "assistantCategoryId",
                   "value": "",
@@ -944,7 +945,7 @@
                 }
               ]
             },
-            "description": "Send message to Gemini (expects messages array)"
+            "description": "Send message to Gemini AI (uses Gemini 2.0 Flash model). Supports RAG context via assistantCategoryId."
           }
         },
         {
@@ -1020,15 +1021,10 @@
               }
             ],
             "url": {
-              "raw": "{{base_url}}/gemini/chat/{{chat_id}}/regenerate?assistant={{assistant}}&assistantCategoryId={{assistantCategoryId}}",
+              "raw": "{{base_url}}/gemini/chat/{{chat_id}}/regenerate?assistantCategoryId={{assistantCategoryId}}",
               "host": ["{{base_url}}"],
               "path": ["gemini", "chat", "{{chat_id}}", "regenerate"],
               "query": [
-                {
-                  "key": "assistant",
-                  "value": "general",
-                  "description": "Which assistant to use: 'general' or 'category'"
-                },
                 {
                   "key": "assistantCategoryId",
                   "value": "",
@@ -1036,7 +1032,7 @@
                 }
               ]
             },
-            "description": "Regenerate the last Gemini response"
+            "description": "Regenerate the last Gemini response. Uses Gemini 2.0 Flash model."
           }
         },
         {
