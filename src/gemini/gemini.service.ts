@@ -215,7 +215,18 @@ export class GeminiService {
 
             const { data } = await axios.post(
                 `${this.baseUrl}?key=${this.apiKey}`,
-                { contents: geminiMessages },
+                {
+                    contents: geminiMessages.map(msg => ({
+                        role: msg.role === 'system' ? 'user' : msg.role, // Gemini doesn't support system role, convert to user
+                        parts: msg.parts
+                    })),
+                    generationConfig: {
+                        maxOutputTokens: 2048,
+                        temperature: 0.7,
+                        topP: 0.8,
+                        topK: 40
+                    }
+                },
                 {
                     headers: {
                         'Content-Type': 'application/json'
@@ -223,18 +234,22 @@ export class GeminiService {
                 }
             );
 
-            const responseText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-            if (responseText) {
-                // Save AI response to database
-                await this.prisma.chatbotMessage.create({
-                    data: {
-                        conversation_id: chatId,
-                        sender_type: 'BOT',
-                        message: responseText,
-                    },
-                });
-                return { response: responseText };
+            // Extract response text and handle potential missing data
+            const responseText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (!responseText) {
+                console.error('Unexpected Gemini API response format:', data);
+                throw new Error('Invalid response format from Gemini API');
             }
+
+            // Save AI response to database
+            await this.prisma.chatbotMessage.create({
+                data: {
+                    conversation_id: chatId,
+                    sender_type: 'BOT',
+                    message: responseText,
+                },
+            });
+            return { response: responseText };
             return { response: null };
         } catch (error: any) {
             // Provide richer logging to troubleshoot 4xx/5xx responses
@@ -304,7 +319,18 @@ export class GeminiService {
 
             const { data } = await axios.post(
                 `${this.baseUrl}?key=${this.apiKey}`,
-                { contents: geminiMessages },
+                {
+                    contents: geminiMessages.map(msg => ({
+                        role: msg.role === 'system' ? 'user' : msg.role,
+                        parts: msg.parts
+                    })),
+                    generationConfig: {
+                        maxOutputTokens: 2048,
+                        temperature: 0.7,
+                        topP: 0.8,
+                        topK: 40
+                    }
+                },
                 {
                     headers: {
                         'Content-Type': 'application/json'
@@ -312,18 +338,22 @@ export class GeminiService {
                 }
             );
 
-            const responseText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-            if (responseText) {
-                // Save new AI response to database
-                await this.prisma.chatbotMessage.create({
-                    data: {
-                        conversation_id: chatId,
-                        sender_type: 'BOT',
-                        message: responseText,
-                    },
-                });
-                return { response: responseText };
+            // Extract response text and handle potential missing data
+            const responseText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (!responseText) {
+                console.error('Unexpected Gemini API response format:', data);
+                throw new Error('Invalid response format from Gemini API');
             }
+
+            // Save new AI response to database
+            await this.prisma.chatbotMessage.create({
+                data: {
+                    conversation_id: chatId,
+                    sender_type: 'BOT',
+                    message: responseText,
+                },
+            });
+            return { response: responseText };
             return { response: null };
         } catch (error: any) {
             console.error('Gemini API error:', {
@@ -464,11 +494,20 @@ export class GeminiService {
                 keyPresent: !!this.apiKey 
             });
 
-            // The Gemini API doesn't support direct streaming, so we'll simulate it
+            // Prepare the Gemini API request properly
             const response = await axios.post(
                 `${this.baseUrl}?key=${this.apiKey}`,
-                { 
-                    contents: geminiMessages
+                {
+                    contents: geminiMessages.map(msg => ({
+                        role: msg.role === 'system' ? 'user' : msg.role, // Gemini doesn't support system role, convert to user
+                        parts: msg.parts
+                    })),
+                    generationConfig: {
+                        maxOutputTokens: 2048,
+                        temperature: 0.7,
+                        topP: 0.8,
+                        topK: 40
+                    }
                 },
                 {
                     headers: {
@@ -494,18 +533,33 @@ export class GeminiService {
                     chunks.push(responseText.slice(i, i + chunkSize));
                 }
 
-                // Stream chunks with proper flushing and connection management
-                for (const chunk of chunks) {
-                    res.write(chunk);
-                    accumulatedContent += chunk;
-                    // Ensure chunk is sent immediately
-                    if (res.flush) res.flush();
-                    await new Promise(resolve => setTimeout(resolve, 20)); // Reduced delay for smoother streaming
+                try {
+                    // Stream chunks with proper error handling and connection management
+                    for (const chunk of chunks) {
+                        if (!res.headersSent) {
+                            res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+                            res.setHeader('Cache-Control', 'no-cache');
+                            res.setHeader('Connection', 'keep-alive');
+                            res.setHeader('Transfer-Encoding', 'chunked');
+                        }
+                        
+                        res.write(chunk);
+                        accumulatedContent += chunk;
+                        
+                        // Ensure chunk is sent immediately
+                        if (res.flush) res.flush();
+                        await new Promise(resolve => setTimeout(resolve, 20)); // Reduced delay for smoother streaming
+                    }
+                    
+                    // Send an empty chunk to signal end of response
+                    res.write('\n');
+                    res.end();
+                } catch (streamError) {
+                    console.error('Error during streaming:', streamError);
+                    if (!res.headersSent) {
+                        res.status(500).json({ error: 'Streaming failed' });
+                    }
                 }
-                
-                // Send an empty chunk to signal end of response
-                res.write('\n');
-                res.end();
 
                 // Save the complete response to database
                 await this.prisma.chatbotMessage.create({
