@@ -28,18 +28,29 @@ export class GeminiController {
     @Post(':chatId/message')
     async sendMessage(
         @Param('chatId') chatId: string,
-        @Body() body: { messages: ChatCompletionMessageDto[] },
+        @Body() body: any,
     @Query('assistant') assistant?: string,
     @Query('assistantCategoryId') assistantCategoryId?: string,
     ) {
-        
-        if (!body || !body.messages || !Array.isArray(body.messages) || body.messages.length === 0) {
+
+        // Support two payload shapes for compatibility:
+        // 1) { messages: [ { role, content }, ... ] }
+        // 2) { role: 'user', content: '...' }  (single message)
+        let messages: ChatCompletionMessageDto[] | undefined;
+
+        if (body && Array.isArray(body.messages)) {
+            messages = body.messages;
+        } else if (body && typeof body.role === 'string' && typeof body.content === 'string') {
+            messages = [ { role: body.role, content: body.content } as ChatCompletionMessageDto ];
+        }
+
+        if (!messages || !Array.isArray(messages) || messages.length === 0) {
             throw new HttpException('Request body must have a non-empty "messages" array', HttpStatus.BAD_REQUEST);
         }
 
         // Get the last message (latest user input)
-        const lastMessage = body.messages[body.messages.length - 1];
-        
+        const lastMessage = messages[messages.length - 1];
+
         if (!lastMessage || typeof lastMessage.role !== 'string' || typeof lastMessage.content !== 'string' || !lastMessage.content.trim()) {
             throw new HttpException('Invalid message: role and content are required.', HttpStatus.BAD_REQUEST);
         }
@@ -48,12 +59,14 @@ export class GeminiController {
             let categoryId: number | undefined;
             if (assistant === 'general') {
                 categoryId = undefined;
-            } else if (assistantCategoryId) {
-                categoryId = parseInt(assistantCategoryId);
+            } else if (assistantCategoryId && assistantCategoryId.trim() !== '') {
+                const parsed = parseInt(assistantCategoryId, 10);
+                categoryId = Number.isNaN(parsed) ? undefined : parsed;
             } else {
                 categoryId = undefined;
             }
-            return await this.geminiService.addMessageAndGetCompletion(parseInt(chatId), lastMessage, categoryId);
+
+            return await this.geminiService.addMessageAndGetCompletion(parseInt(chatId, 10), lastMessage, categoryId);
         } catch (e) {
             throw new HttpException(e.message, HttpStatus.NOT_FOUND);
         }

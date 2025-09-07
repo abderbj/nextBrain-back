@@ -51,8 +51,9 @@ export class LlamaController {
             let categoryId: number | undefined;
             if (assistant === 'general') {
                 categoryId = undefined;
-            } else if (assistantCategoryId) {
-                categoryId = parseInt(assistantCategoryId);
+            } else if (assistantCategoryId && assistantCategoryId.trim() !== '') {
+                const parsed = parseInt(assistantCategoryId, 10);
+                categoryId = Number.isNaN(parsed) ? undefined : parsed;
             } else {
                 categoryId = undefined;
             }
@@ -91,8 +92,9 @@ export class LlamaController {
             let categoryId: number | undefined;
             if (assistant === 'general') {
                 categoryId = undefined;
-            } else if (assistantCategoryId) {
-                categoryId = parseInt(assistantCategoryId);
+            } else if (assistantCategoryId && assistantCategoryId.trim() !== '') {
+                const parsed = parseInt(assistantCategoryId, 10);
+                categoryId = Number.isNaN(parsed) ? undefined : parsed;
             } else {
                 categoryId = undefined;
             }
@@ -117,8 +119,9 @@ export class LlamaController {
             let categoryId: number | undefined;
             if (assistant === 'general') {
                 categoryId = undefined;
-            } else if (assistantCategoryId) {
-                categoryId = parseInt(assistantCategoryId);
+            } else if (assistantCategoryId && assistantCategoryId.trim() !== '') {
+                const parsed = parseInt(assistantCategoryId, 10);
+                categoryId = Number.isNaN(parsed) ? undefined : parsed;
             } else {
                 categoryId = undefined;
             }

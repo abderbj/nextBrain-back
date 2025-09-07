@@ -161,8 +161,14 @@ export class GeminiService {
             orderBy: { sent_at: 'asc' },
         });
 
-    // If an assistantCategoryId was provided, call RAG service to get relevant chunks
+        // If an assistantCategoryId was provided, call RAG service to get relevant chunks
     const ragContext = await this.fetchRagContext(message.content, assistantCategoryId);
+
+        // Validate API key early so we fail fast with clear message
+        if (!this.apiKey) {
+            console.error('GEMINI_API_KEY is not set in environment; cannot call Gemini API');
+            throw new Error('GEMINI_API_KEY not set. Gemini response generation is disabled.');
+        }
 
         // Convert messages to Gemini format
         const geminiMessages = allMessages.map(msg => ({
@@ -176,6 +182,9 @@ export class GeminiService {
         }
 
         try {
+            // Log payload for debugging when running locally
+            console.debug('Sending request to Gemini API', { url: this.baseUrl, keyPresent: !!this.apiKey, payloadPreview: JSON.stringify({ contents: geminiMessages }).slice(0, 2000) });
+
             const { data } = await axios.post(
                 `${this.baseUrl}?key=${this.apiKey}`,
                 { contents: geminiMessages },
@@ -199,9 +208,15 @@ export class GeminiService {
                 return { response: responseText };
             }
             return { response: null };
-        } catch (error) {
-            console.error('Gemini API error:', error.response?.data || error.message);
-            throw new Error('Failed to get response from Gemini');
+        } catch (error: any) {
+            // Provide richer logging to troubleshoot 4xx/5xx responses
+            console.error('Gemini API error:', {
+                status: error.response?.status,
+                data: error.response?.data,
+                message: error.message,
+            });
+            const statusPart = error.response?.status ? ` (status ${error.response.status})` : '';
+            throw new Error('Failed to get response from Gemini' + statusPart);
         }
     }
 
@@ -249,6 +264,8 @@ export class GeminiService {
         }
 
         try {
+            console.debug('Regenerating with Gemini API', { url: this.baseUrl, keyPresent: !!this.apiKey });
+
             const { data } = await axios.post(
                 `${this.baseUrl}?key=${this.apiKey}`,
                 { contents: geminiMessages },
@@ -272,9 +289,14 @@ export class GeminiService {
                 return { response: responseText };
             }
             return { response: null };
-        } catch (error) {
-            console.error('Gemini API error:', error.response?.data || error.message);
-            throw new Error('Failed to get response from Gemini');
+        } catch (error: any) {
+            console.error('Gemini API error:', {
+                status: error.response?.status,
+                data: error.response?.data,
+                message: error.message,
+            });
+            const statusPart = error.response?.status ? ` (status ${error.response.status})` : '';
+            throw new Error('Failed to get response from Gemini' + statusPart);
         }
     }
 
