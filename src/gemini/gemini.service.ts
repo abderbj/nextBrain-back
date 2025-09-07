@@ -83,9 +83,22 @@ export class GeminiService {
                         chars += text.length;
                     }
 
-                    const ragContext = selected.map((c: any, i: number) => 
-                        `Chunk ${i + 1} (file: ${c.file_path ?? 'unknown'}): ${c.text}`
-                    ).join('\n\n');
+                    // Enhanced RAG context formatting optimized for Gemini's context processing
+                    const ragContext = [
+                        "Context Analysis Instructions:",
+                        "1. Below are relevant excerpts from verified knowledge sources",
+                        "2. Each excerpt is labeled with its source document",
+                        "3. Focus on these key guidelines:",
+                        "   - Use this context as your primary information source",
+                        "   - Cross-reference information between chunks when relevant",
+                        "   - Prioritize recent or authoritative sources if information conflicts",
+                        "   - Stay focused on information directly from these sources",
+                        "   - Clearly indicate when synthesizing information across multiple chunks\n",
+                        "Reference Materials:",
+                        ...selected.map((c: any, i: number) => 
+                            `[Source ${i + 1}] Document: ${c.file_path ?? 'unknown'}\n${c.text}`
+                        )
+                    ].join('\n\n');
 
                     console.log(`[Gemini RAG] Success: ${chunks.length} chunks from ${ragUrl}, using ${selected.length} unique chunks (${chars} chars)`);
                     return ragContext;
@@ -204,9 +217,24 @@ export class GeminiService {
             parts: [{ text: msg.message }]
         }));
 
-        // If we have ragContext, inject it as a system-like first message to guide Gemini
+        // If we have ragContext, inject it as a system-like first message with enhanced instructions
         if (ragContext) {
-            geminiMessages.unshift({ role: 'system', parts: [{ text: `Use the following contextual chunks from the knowledge base to answer the user's question.\n\n${ragContext}` }] });
+            geminiMessages.unshift({ 
+                role: 'system', 
+                parts: [{ 
+                        text: `You are an expert AI assistant responsible for providing accurate and detailed responses based on the given context.
+                        RESPONSE GUIDELINES:
+                        1. Thoroughly analyze all context sections before formulating your response
+                        2. Base your answer primarily on the information from the provided sources
+                        3. Reference specific sources using [Source X] notation when drawing from them
+                        4. When relevant information spans multiple sources, integrate it seamlessly
+                        5. If the provided context is insufficient, clearly state this limitation
+                        6. Structure your responses with clear sections and logical flow
+                        7. Ensure factual accuracy and maintain an informative tone
+                        8. When synthesizing information, explain your reasoning
+                        ${ragContext}` 
+                    }] 
+            });
         }
 
         try {

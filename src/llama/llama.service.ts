@@ -204,7 +204,21 @@ export class LlamaService {
                         chars += text.length;
                     }
 
-                    const ragContext = selected.map((c: any, i: number) => `Chunk ${i + 1} (file: ${c.file_path ?? 'unknown'}): ${c.text}`).join('\n\n');
+                    // Enhanced RAG context formatting for better context comprehension
+                    const ragContext = [
+                        "Instructions for using the provided context:",
+                        "1. The following text chunks are from relevant documents in the knowledge base",
+                        "2. Each chunk contains specific information related to the question",
+                        "3. Use these chunks as your primary source of information",
+                        "4. Synthesize information across chunks when needed",
+                        "5. If chunks contain conflicting information, use the most recent or most authoritative source",
+                        "6. Stay within the scope of the provided context and the question\n",
+                        "Relevant Context Chunks:",
+                        ...selected.map((c: any, i: number) => 
+                            `[Chunk ${i + 1}] Source: ${c.file_path ?? 'unknown'}\nContent: ${c.text}`
+                        )
+                    ].join('\n\n');
+
                     console.log(`RAG returned ${chunks.length} chunks from ${ragUrl}, using ${selected.length} unique chunks (${chars} chars)`);
                     return ragContext;
                 }
